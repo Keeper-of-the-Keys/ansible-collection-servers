@@ -1,0 +1,52 @@
+# domain.tld is not important since that part of the generated record is ignored.
+- name: Generate TLSA records
+  ansible.builtin.shell: "tlsa --create --certificate {{ acme_defaults.path_local }}{{ cert.name }}-fullchain.crt  domain.tld | grep TLSA | cut -f 4- -d ' '"
+  changed_when: false
+  register: tlsa_record
+  delegate_to: localhost
+
+- name: Create/reset tlsa_records
+  ansible.builtin.set_fact:
+    tlsa_records: {}
+  delegate_to: localhost
+
+- name: Get current TLSA records
+  ansible.builtin.set_fact:
+    tlsa_records: '{{ tlsa_records | combine(record | items2dict) }}'
+  delegate_to: localhost
+  loop: "{{ ([ cert.name ] + cert.alt_names.dns|default([])) | map('regex_replace', '^(.*)$', '*._tcp.\\1.') }}"
+  vars:
+    record:
+    - key: '{{ item }}'
+      value: "{{ lookup('community.general.dig', item, acme_defaults.isp_dns, qtype='TLSA', wantlist=true) }}"
+  when: cert.tlsa_all_ports is true
+
+- name: Create/update TLSA records
+  community.general.nsupdate:
+    key_name: '{{ nsupdate.key_name }}'
+    key_secret: '{{ nsupdate.key_secret }}'
+    key_algorithm: '{{ nsupdate.key_algorithm }}'
+    server: '{{ nsupdate.server }}'
+    zone: '{{ nsupdate.zone }}'
+    type: TLSA
+    record: '{{ item }}'
+    value: "{{ [ tlsa_record.stdout ] | union( (tlsa_records[item] != ['NXDOMAIN']) | ternary(tlsa_records[item], []) ) }}"
+  delegate_to: localhost
+  loop: "{{ ([ cert.name ] + cert.alt_names.dns|default([])) | map('regex_replace', '^(.*)$', '*._tcp.\\1.') }}"
+  when:
+  - cert.tlsa_all_ports is true
+  - tlsa_record.stdout not in tlsa_records[item]
+
+- name: Wait for DNS propagation
+  ansible.builtin.debug:
+    msg: "Waiting for DNS propagation\nRecord: {{ item }}\nneeds to be: {{ tlsa_record.stdout }}\n {{ lookup('community.general.dig', item, acme_defaults.isp_dns, qtype='TLSA') }}"
+  until: tlsa_record.stdout in lookup('community.general.dig', item, acme_defaults.isp_dns, qtype='TLSA', wantlist=true)
+  retries: 60
+  delay: 120
+  loop: "{{ ([ cert.name ] + cert.alt_names.dns|default([])) | map('regex_replace', '^(.*)$', '*._tcp.\\1.') }}"
+  when: cert.tlsa_all_ports is true
+
+# TODO:
+# - Add multidomain support
+# + restart relevant services
+# + Move all config values to host

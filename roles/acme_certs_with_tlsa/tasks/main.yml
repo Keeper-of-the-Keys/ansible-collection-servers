@@ -1,0 +1,55 @@
+- name: Verify we have root access
+  ansible.builtin.ping:
+  become: yes
+
+- name: Create Account Key
+  community.crypto.openssl_privatekey:
+    type: RSA
+    size: 4096
+    path: '{{ acme_defaults.path_local }}keys/account.key'
+    passphrase: '{{ acme_defaults.account_passphrase }}'
+    cipher: auto
+  delegate_to: localhost
+  run_once: true
+
+- name: 'Letsencrypt stage: ACME'
+  ansible.builtin.include_tasks: tasks/letsencrypt-acme.yaml
+  loop: '{{ acme_certs }}'
+  loop_control:
+    label: '{{ cert.name }}'
+    loop_var: cert
+  when: acme_certs is defined
+
+- name: 'Letsencrypt stage: TLSA'
+  ansible.builtin.include_tasks: tasks/letsencrypt-tlsa.yaml
+  loop: '{{ acme_certs }}'
+  loop_control:
+    label: '{{ cert.name }}'
+    loop_var: cert
+  when:
+  - acme_certs is defined
+  - (cert.tlsa_all_ports is true) or ((cert.tlsa_ports.tcp is defined) and cert.tlsa_ports.tcp | length > 0)
+
+- name: 'Letsencrypt stage: Cert deploy'
+  ansible.builtin.include_tasks: tasks/letsencrypt-deploy.yaml
+  loop: '{{ acme_certs }}'
+  loop_control:
+    label: '{{ cert.name }}'
+    loop_var: cert
+  when: acme_certs is defined
+
+- name: 'Letsencrypt stage: TLSA cleanup'
+  ansible.builtin.include_tasks: tasks/letsencrypt-tlsa-cleanup.yaml
+  loop: '{{ acme_certs }}'
+  loop_control:
+    label: '{{ cert.name }}'
+    loop_var: cert
+  when:
+  - acme_certs is defined
+  - (cert.tlsa_all_ports is true) or ((cert.tlsa_ports.tcp is defined) and cert.tlsa_ports.tcp | length > 0)
+
+# TODO:
+# - Add multidomain support
+# - Change account key to ECDSA384
+# + restart relevant services
+# + Move all config values to host

@@ -1,0 +1,110 @@
+- name: Create CSR signing key
+  community.crypto.openssl_privatekey:
+    type: ECC
+    curve: secp384r1
+    #size: 4096
+    passphrase: '{{ cert.passphrase | default(omit) }}'
+    path: '{{ acme_defaults.path_local }}keys/{{ cert.name }}.key'
+  delegate_to: localhost
+  register: csr_signing_key
+
+- name: Remove old CSR when key changes
+  ansible.builtin.file:
+     path: '{{ item }}'
+     state: absent
+  loop:
+  - '{{ acme_defaults.path_local }}csr/{{ cert.name }}.csr'
+  - '{{ acme_defaults.path_local + cert.name }}.crt'
+  - '{{ acme_defaults.path_local + cert.name }}-fullchain.crt'
+  - '{{ acme_defaults.path_local + cert.name }}-intermediate.crt'
+  delegate_to: localhost
+  when: csr_signing_key is changed
+
+- name: Create CSR
+  community.crypto.openssl_csr:
+    path: '{{ acme_defaults.path_local }}csr/{{ cert.name }}.csr'
+    privatekey_path: '{{ acme_defaults.path_local }}keys/{{ cert.name }}.key'
+    common_name: '{{ cert.name }}'
+    email_address: '{{ cert.email_address }}'
+    country_name: '{{ cert.country_name }}'
+    organization_name: '{{ cert.organization_name }}'
+    subject_alt_name: "{{ cert.alt_names.dns | default([]) | map('regex_replace', '^', 'DNS:') | list }}"
+  delegate_to: localhost
+
+- name: Create a challenge for hosts
+  community.crypto.acme_certificate:
+    account_key_src: '{{ acme_defaults.path_local }}keys/account.key'
+    account_key_passphrase: '{{ acme_defaults.account_passphrase }}'
+    account_email: '{{ acme_defaults.account_email }}'
+    src: '{{ acme_defaults.path_local }}csr/{{ cert.name }}.csr'
+    cert: '{{ acme_defaults.path_local + cert.name }}.crt'
+    challenge: dns-01
+    acme_directory: '{{ acme_defaults.acme_directory }}'
+    acme_version: 2
+    # Renew if the certificate is at least 30 days old
+    remaining_days: 60
+    terms_agreed: yes
+  delegate_to: localhost
+  register: acme_data
+
+- name: Create DNS entries
+  community.general.nsupdate:
+    key_name: '{{ nsupdate.key_name }}'
+    key_secret: '{{ nsupdate.key_secret }}'
+    key_algorithm: '{{ nsupdate.key_algorithm }}'
+    server: '{{ nsupdate.server }}'
+    zone: '{{ nsupdate.zone }}'
+    type: TXT
+    ttl: 60
+    record: '{{ item.key }}.'
+    value: '{{ item.value }}'
+  delegate_to: localhost
+  loop: '{{ acme_data.challenge_data_dns | dict2items }}'
+  loop_control:
+    label: '{{ item.key }}'
+  when: acme_data is changed and acme_data.challenge_data_dns | length > 0
+
+- name: Wait for DNS propagation
+  ansible.builtin.debug:
+    msg: "Waiting for DNS propagation\nRecord: {{ item.key }}\nneeds to be: {{ item.value }}\n {{ lookup('community.general.dig', item.key, acme_defaults.common_dns, qtype='TXT') }}"
+  until: lookup('community.general.dig', item.key, '@8.8.8.8', qtype='TXT') in item.value
+  retries: 30
+  delay: 60
+  loop: '{{ acme_data.challenge_data_dns | dict2items }}'
+  loop_control:
+    label: '{{ item.key }}'
+  when: acme_data is changed and acme_data.challenge_data_dns | length > 0
+
+- name: Validate challenge
+  community.crypto.acme_certificate:
+    account_key_src: '{{ acme_defaults.path_local }}keys/account.key'
+    account_key_passphrase: '{{ acme_defaults.account_passphrase }}'
+    account_email: '{{ acme_defaults.account_email }}'
+    src: '{{ acme_defaults.path_local }}csr/{{ cert.name }}.csr'
+    cert: '{{ acme_defaults.path_local + cert.name }}.crt'
+    fullchain: '{{ acme_defaults.path_local + cert.name }}-fullchain.crt'
+    chain: '{{ acme_defaults.path_local + cert.name }}-intermediate.crt'
+    challenge: dns-01
+    acme_directory: '{{ acme_defaults.acme_directory }}'
+    acme_version: 2
+    remaining_days: 60
+    data: '{{ acme_data }}'
+  when: acme_data is changed and acme_data.challenge_data_dns | length > 0
+  delegate_to: localhost
+  register: le_validate
+
+- name: Delete DNS entries
+  community.general.nsupdate:
+    key_name: '{{ nsupdate.key_name }}'
+    key_secret: '{{ nsupdate.key_secret }}'
+    key_algorithm: '{{ nsupdate.key_algorithm }}'
+    server: '{{ nsupdate.server }}'
+    zone: '{{ nsupdate.zone }}'
+    record: '{{ item.key }}'
+    type: TXT
+    state: absent
+  delegate_to: localhost
+  loop: '{{ acme_data.challenge_data_dns | dict2items }}'
+  loop_control:
+    label: '{{ item.key }}'
+  when: acme_data is changed and acme_data.challenge_data_dns | length > 0

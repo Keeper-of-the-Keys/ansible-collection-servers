@@ -1,0 +1,26 @@
+# If a host has multiple certs defined tlsa_record will have been overwritten.
+- name: Generate TLSA records
+  ansible.builtin.shell: "tlsa --create --certificate {{ acme_defaults.path_local }}{{ cert.name }}-fullchain.crt  domain.tld | grep TLSA | cut -f 4- -d ' '"
+  changed_when: false
+  register: tlsa_record
+  delegate_to: localhost
+
+- name: Reset TLSA records
+  community.general.nsupdate:
+    key_name: '{{ nsupdate.key_name }}'
+    key_secret: '{{ nsupdate.key_secret }}'
+    key_algorithm: '{{ nsupdate.key_algorithm }}'
+    server: '{{ nsupdate.server }}'
+    zone: '{{ nsupdate.zone }}'
+    type: TLSA
+    record: '{{ item }}'
+    value: "{{ [ tlsa_record.stdout ] }}"
+  delegate_to: localhost
+  loop: "{{ ([ cert.name ] + cert.alt_names.dns|default([])) | map('regex_replace', '^(.*)$', '*._tcp.\\1.') }}"
+  when:
+  - cert.tlsa_all_ports is true
+
+# TODO:
+# - Add multidomain support
+# + restart relevant services
+# + Move all config values to host
