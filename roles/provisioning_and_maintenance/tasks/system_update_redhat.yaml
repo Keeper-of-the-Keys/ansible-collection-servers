@@ -1,0 +1,5 @@
+- name: dnf upgrade
+  ansible.builtin.include_tasks: tasks/dnf_upgrade.yaml
+
+- name: restart red hat
+  ansible.builtin.include_tasks: tasks/restart_redhat.yaml

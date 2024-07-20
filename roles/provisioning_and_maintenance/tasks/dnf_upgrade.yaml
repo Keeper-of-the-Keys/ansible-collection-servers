@@ -1,0 +1,10 @@
+- name: Upgrade all
+  become: yes
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+
+- name: Autoremove
+  become: yes
+  ansible.builtin.dnf:
+    autoremove: true

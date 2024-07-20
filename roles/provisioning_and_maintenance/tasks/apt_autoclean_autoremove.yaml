@@ -1,0 +1,5 @@
+- name: apt-get autoclean/autoremove
+  become: yes
+  ansible.builtin.apt:
+    autoclean: yes
+    autoremove: yes

@@ -1,0 +1,31 @@
+---
+# vars file for provisioning_and_maintenance
+baseline_packages:
+  Debian:
+  - fail2ban
+  - tmux
+  - htop
+  - btop
+  - iftop
+  - iotop
+  - netdiscover
+  - net-tools
+  - lshw
+  - tcpdump
+  - traceroute
+  - elinks
+  - sudo
+  - netcat-openbsd
+  - python3-firewall
+  RedHat:
+  - fail2ban
+  - tmux
+  - iftop
+  - iotop
+  - net-tools
+  - lshw
+  - elinks
+  - dnf-utils
+  - netcat
+  - htop
+  - btop

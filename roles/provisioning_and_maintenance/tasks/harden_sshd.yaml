@@ -1,0 +1,25 @@
+- name: Allow only SSH key authentication
+  become: yes
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication yes'
+    line: 'PasswordAuthentication no'
+    validate: '/usr/sbin/sshd -T -f %s'
+  notify: restart_openssh
+  when:
+  - ssh_keys_only == 'yes'
+  - authorized_key_installation is succeeded
+
+- name: Modify SSHd config
+  become: yes
+  ansible.builtin.lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    validate: '/usr/sbin/sshd -T -f %s'
+  notify: restart_openssh
+  loop:
+  - regexp: '^#ClientAliveInterval 0'
+    line: 'ClientAliveInterval 300'
+  - regexp: '#ClientAliveCountMax 3'
+    line: 'ClientAliveCountMax 3'

@@ -1,0 +1,23 @@
+---
+# tasks file for provisioning_and_maintenance
+
+- name: apt-get update
+  ansible.builtin.include_tasks: tasks/apt_update.yaml
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Install baseline
+  ansible.builtin.include_tasks: tasks/install_baseline.yaml
+
+- name: Configure default users
+  ansible.builtin.include_tasks: tasks/default_users.yaml
+
+- name: Harden SSHd
+  ansible.builtin.include_tasks: tasks/harden_sshd.yaml
+
+- name: System Update Red Hat
+  ansible.builtin.include_tasks: tasks/system_update_redhat.yaml
+  when: ansible_facts.os_family == 'RedHat'
+
+- name: System Update Debian
+  ansible.builtin.include_tasks: tasks/system_update_debian.yaml
+  when: ansible_facts.os_family == 'Debian'

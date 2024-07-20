@@ -1,0 +1,6 @@
+---
+# handlers file for provisioning_and_maintenance
+- name: restart_openssh
+  ansible.builtin.service:
+    name: '{{ ssh_service[ansible_facts.os_family] }}'
+    state: restarted

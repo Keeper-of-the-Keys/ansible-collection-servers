@@ -1,0 +1,5 @@
+- name: Install baseline
+  become: yes
+  ansible.builtin.package:
+    name: '{{ baseline_packages[ansible_facts.os_family] | default(["sudo"]) }}'
+    state: latest

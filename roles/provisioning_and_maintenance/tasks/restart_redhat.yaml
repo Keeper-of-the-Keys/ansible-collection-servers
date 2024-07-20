@@ -1,0 +1,28 @@
+- name: Check if reboot is needed
+  become: yes
+  ansible.builtin.shell:
+    cmd: needs-restarting -r
+  register: reboot_required
+  failed_when: "reboot_required.rc not in [ 0, 1]"
+
+- name: Reboot
+  become: yes
+  ansible.builtin.reboot:
+  when: reboot_required.rc == 1
+
+- name: Check if services need restart
+  become: yes
+  ansible.builtin.shell:
+    cmd: needs-restarting -s | grep service
+  register: restart_required
+  failed_when: "restart_required.rc not in [ 0, 1]"
+
+- name: Restart services
+  become: yes
+  ansible.builtin.service:
+    name: '{{ restart_service }}'
+    state: restarted
+  loop: '{{ restart_required.stdout_lines }}'
+  loop_control:
+    loop_var: restart_service
+  when: "restart_required.stdout_lines | length > 0"

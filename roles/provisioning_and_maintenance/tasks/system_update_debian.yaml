@@ -1,0 +1,11 @@
+- name: apt-get update
+  ansible.builtin.include_tasks: tasks/apt_update.yaml
+
+- name: apt-get dist-upgrade
+  ansible.builtin.include_tasks: tasks/apt_dist_upgrade.yaml
+
+- name: apt-get autoclean/autoremove
+  ansible.builtin.include_tasks: tasks/apt_autoclean_autoremove.yaml
+
+- name: restart debian
+  ansible.builtin.include_tasks: tasks/restart_debian.yaml

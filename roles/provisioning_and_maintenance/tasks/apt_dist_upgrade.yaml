@@ -1,0 +1,4 @@
+- name: apt-get dist-upgrade
+  become: yes
+  ansible.builtin.apt:
+    upgrade: dist

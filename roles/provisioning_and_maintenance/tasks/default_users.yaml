@@ -1,0 +1,21 @@
+- name: 'Add default local users'
+  become: yes
+  ansible.builtin.user:
+    name: '{{ item.username }}'
+    comment: '{{ item.fullname }}'
+    uid: '{{ item.uid }}'
+    shell: '{{ item.shell }}'
+    password: '{{ item.password }}'
+    state: "{{ item.state | default('present') }}"
+    groups: '{{ item.groups | default(omit) }}'
+    #update_password: "{{ item.update_password | default('on_create') }}"
+  loop: '{{ default_users }}'
+
+- name: 'Deploy SSH key for default local users'
+  become: yes
+  ansible.posix.authorized_key:
+    user: '{{ item.username }}'
+    key: '{{ item.key }}'
+    state: '{{ item.state }}'
+  loop: '{{ default_users }}'
+  register: authorized_key_installation

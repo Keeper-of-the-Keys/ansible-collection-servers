@@ -1,0 +1,15 @@
+---
+# defaults file for provisioning_and_maintenance
+become_group:
+  Debian: sudo
+  RedHat: wheel
+
+ssh_service:
+  Debian: ssh
+  RedHat: sshd
+
+baseline_packages:
+  Debian:
+  - sudo
+  RedHat:
+  - sudo

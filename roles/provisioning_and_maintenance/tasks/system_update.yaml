@@ -1,0 +1,7 @@
+- name: Debian Update
+  ansible.builtin.include_tasks: tasks/system_update_debian.yaml
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Redhat Update
+  ansible.builtin.include_tasks: tasks/system_update_redhat.yaml
+  when: ansible_facts.os_family == 'RedHat'
