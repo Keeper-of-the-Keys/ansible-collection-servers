@@ -14,7 +14,7 @@ TLSA can be skipped in which case deploy and service restart will happen immedia
 
 Limitations:
 - TLSA records are currently for all ports, I hope to in the future add the ability to do per port TLSA records but this does not have a high priority.
-- The current TLSA setup assumes only a single cert/fqdn tupple, thus it is not possible to have a different cert on a reverse proxy than on the actual server.
+- The current TLSA setup assumes only a single cert/fqdn tupple, thus it is not possible to have a different cert on a reverse proxy than on the actual server (which may not matter in the age of wide support for SNI).
 - The nsupdate related tasks currently only support a single zone/key this should be fairly trivial to expand and I hope to do so in the future.
 
 Note: a large part of the tasks in this role will run from localhost, the certificates will be stored locally and copied.
@@ -27,6 +27,7 @@ This role needs the `tlsa` program to be available on localhost on Debian based 
 Role Variables
 --------------
 group_vars or role defaults (can of course also be set at host level but leads to lots of duplicate data):
+
     # It is highly recommended to use ansible-vault for the various secrets/passphrases.
     # nsupdate
     nsupdate:
@@ -49,6 +50,7 @@ group_vars or role defaults (can of course also be set at host level but leads t
 
 
 host_vars:
+
     acme_certs:
     - name: # CN
       email_address:
@@ -79,6 +81,7 @@ Dependencies
 
 Example Playbook
 ----------------
+Renew all certificates:
 
     - hosts: servers
       collections:
@@ -86,6 +89,21 @@ Example Playbook
       roles:
       - role: acme_certs_with_tlsa
         state: present
+
+
+Renew a specific certificate:
+
+    - hosts: servers
+      collections:
+      - keeperofthekeys.servers
+      vars:
+      - var_cert: fqdn
+      tasks:
+      - name: Renew certificate
+        ansible.builtin.include_role:
+          name: acme_certs_with_tlsa
+          tasks_from: renew-cert
+
 
 License
 -------
