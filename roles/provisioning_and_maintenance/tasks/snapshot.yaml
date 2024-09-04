@@ -1,0 +1,16 @@
+# Requires: python3-proxmoxer on the machine running this (localhost)
+# Requires: API key with a role that has these premissions: VM.Audit VM.Snapshot
+
+- name: Create pre-update snapshot (Proxmox VE)
+  community.general.proxmox_snap:
+    api_host: '{{ pve_api_host }}'
+    api_user: '{{ pve_api_user | default("root@pam") }}'
+    api_token_id: '{{ pve_api_token_id }}'
+    api_token_secret: '{{ pve_api_token_secret }}'
+    vmid: '{{ pve_vmid | default(omit) }}'
+    hostname: '{{ pve_vm_name | default(omit) }}'
+    state: present
+    snapname: 'pre-ansible-update-{{ ansible_date_time.iso8601_basic_short }}'
+    retention: 2
+  when: pve_vmid is defined or pve_vm_name is defined
+  delegate_to: localhost

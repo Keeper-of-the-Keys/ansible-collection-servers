@@ -1,3 +1,6 @@
+- name: Snapshot host
+  ansible.builtin.include_tasks: tasks/snapshot.yaml
+
 - name: Debian Update
   ansible.builtin.include_tasks: tasks/system_update_debian.yaml
   when: ansible_facts.os_family == 'Debian'
