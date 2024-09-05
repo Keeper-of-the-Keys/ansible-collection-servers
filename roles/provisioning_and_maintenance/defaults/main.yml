@@ -13,3 +13,6 @@ baseline_packages:
   - sudo
   RedHat:
   - sudo
+
+pve_api_user: 'root@pam'
+pve_snapshot_retention: 2
