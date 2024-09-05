@@ -31,6 +31,7 @@ Defaults:
 of course also be overridden at the group/host level.
 
 Group/host vars that are also expected/used:
+
     # It is highly recommended to use ansible-vault for the various secrets/passphrases.
     # Default local users
     default_users:
@@ -46,6 +47,22 @@ Group/host vars that are also expected/used:
     # SSH settings, if SSH keys were deployed successfully SSHd will be configured to disallow password authentication.
     ssh_keys_only: yes
 
+If a host is a proxmox guest (vm/ct) then it can be snapshotted automatically before the update with the following vars set:
+
+    # Stricly host settings (one or both of these is needed):
+    pve_vmid:
+    pve_vm_name:
+
+    # These can be per host or group either is logical
+    # The API token needs the following permissions: VM.Audit VM.Snapshot
+
+    pve_api_host:
+    pve_api_token_id:
+    pve_api_token_secret:
+
+    # Only mandatory if different from default:
+    pve_api_user: 'root@pam'
+    pve_snapshot_retention: 2
 
 Dependencies
 ------------
