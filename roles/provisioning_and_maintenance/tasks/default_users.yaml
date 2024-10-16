@@ -19,3 +19,4 @@
     state: '{{ item.state }}'
   loop: '{{ default_users }}'
   register: authorized_key_installation
+  when: item.key is defined
