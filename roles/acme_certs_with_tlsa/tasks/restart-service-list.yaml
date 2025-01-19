@@ -5,3 +5,4 @@
   loop: '{{ _services.services }}'
   delegate_to: '{{ _services.name }}'
   become: true
+  when: _services.services is defined
