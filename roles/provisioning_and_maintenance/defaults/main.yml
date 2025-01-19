@@ -1,5 +1,9 @@
 ---
 # defaults file for provisioning_and_maintenance
+sudo_present_command:
+  Debian: dpkg -l sudo
+  RedHat: rpm -q sudo
+
 become_group:
   Debian: sudo
   RedHat: wheel

@@ -1,0 +1,14 @@
+# Check if sudo is already installed, if not use `su` as the become method.
+# This of course will only work if the user also called the playbook with `-k -K`
+# For my setup this check is only relevant for initial provisioning since sudo is in my baseline.
+
+- name: Check if sudo in stalled -- dpkg
+  ansible.builtin.shell:
+    cmd: '{{ sudo_present_command[ansible_facts.os_family] }}'
+  register: sudo_present
+  failed_when: "sudo_present.rc not in [ 0, 1 ]"
+
+- name: Set su instead of sudo
+  ansible.builtin.set_fact:
+    ansible_become_method: su
+  when: sudo_present.rc is defined and sudo_present.rc == 1

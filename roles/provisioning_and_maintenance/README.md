@@ -13,6 +13,10 @@ Role Variables
 --------------
 
 Defaults:
+    sudo_present_command:
+      Debian: dpkg -l sudo
+      RedHat: rpm -q sudo
+
     become_group:
       Debian: sudo
       RedHat: wheel
@@ -72,12 +76,11 @@ The only non `ansible.builtin` task is `ansible.posix.authorized_key`.
 Example Playbook
 ----------------
 
-Playbook to run the whole role:
+Playbook to run the whole role, note that since we are testing if su or sudo should be used `become` should not be set at the playbook level:
 
     ---
     - name: Playbook to run initial setup of user and baseline software
       hosts: servers
-      become: yes
       serial: 1
 
       collections:
