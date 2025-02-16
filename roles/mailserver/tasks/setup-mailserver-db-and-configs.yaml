@@ -42,7 +42,7 @@
 
 - name: Populate database
   ansible.builtin.include_tasks: tasks/db-mailserver-populate.yaml
-  when: database_created is changed or mailserver_ansible_source_of_truth not defined or mailserver_ansible_source_of_truth
+  when: database_created is changed or mailserver_ansible_source_of_truth is not defined or mailserver_ansible_source_of_truth
 
 # TODO/TBD: dovecot and postfix users?
 # Postfix read only, no password hashes, only procedures?

@@ -172,7 +172,7 @@
       `roles`= '["ROLE_ADMIN"]',
       `password` = %(password)s,
       `is_verified` = 1
-      {% mailserver_ansible_source_of_truth not defined or (mailserver_ansible_source_of_truth is defined and mailserver_ansible_source_of_truth) %}
+      {% mailserver_ansible_source_of_truth is not defined or (mailserver_ansible_source_of_truth is defined and mailserver_ansible_source_of_truth) %}
       on duplicate key update
       `password` = %(password)s
       {% endif %}

@@ -23,4 +23,4 @@
       `key` = %(key)s and
       `value` = %(value)s
     named_args: '{{ _system_info }}'
-  when: _system_info.state is defined and_system_info.state == 'absent'
+  when: _system_info.state is defined and _system_info.state == 'absent'
