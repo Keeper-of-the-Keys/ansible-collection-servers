@@ -1,0 +1,198 @@
+# This can probably be delegated to a different host/LXC.
+# In my setup I am using the mailserver since it anyhow runs a webserver for the management interface.
+# While in an ideal world I should split all these functions (mysql, mail, web) striving for perfection is the enemy of bringing up a working setup in reasonable time.
+# I may very well go back and split off things in the future.
+# It should also be noted that the mailmanagement interface needs to run *on* the mail server because at this stage the way everything is setup it won't be able to send mails otherwise.
+# I have no desire to add authenticated smtp to mailmanagement at this time.
+
+# Steps for Viesti Reports/DMARC
+## 1. Setup mail address -- can and should just be done through inventory
+## 2. Create/update app password for DMARC
+## 3. Clone git
+## 4. Generate mysql user/db/pass
+## 5. Generate env.local
+## 6. Run update.sh
+## 7. Run installservice.sh/or tasks to create the service + timer
+## 8. Viesti User
+# 9. Viesti Domain
+# 10. Viesti BIMI?
+
+- name: Clone Viesti-Reports
+  become: yes
+  ansible.builtin.git:
+    repo: 'https://github.com/antedebaas/Viesti-Reports.git'
+    dest: '{{ viesti_path }}'
+
+- name: Generate new random passwords for viesti reports
+  ansible.builtin.set_fact:
+    viesti_mail_password: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
+    viesti_db_password: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
+  vars:
+    special_list: '-_=+()[]{},./?!@#$^~:'
+
+- name: Create Viesti db
+  become: yes
+  community.mysql.mysql_db:
+    name: '{{ viesti_db_name }}'
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    state: present
+  register: database_created
+
+- name: Create user or cycle password
+  become: yes
+  community.mysql.mysql_user:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: '{{ viesti_db_user }}'
+    password: '{{ viesti_db_password }}'
+    priv:
+      '{{ viesti_db_name }}.*:ALL'
+    state: present
+
+- name: Determine if config already exists
+  ansible.builtin.stat:
+    path: '{{ viesti_path }}.env.local'
+  register: config_exists
+
+- name: Extract Viesti Mail username
+  become: yes
+  ansible.builtin.shell:
+    cmd: "grep MAILBOX_USERNAME {{ viesti_path }}.env.local | awk -F '\"' '{ print $2; }'"
+  register: viesti_mail
+  when: config_exists.stat.isreg is defined and config_exists.stat.isreg
+
+- name: Generate new Viesti Mail user
+  ansible.builtin.set_fact:
+    viesti_mail_user: "_dmarc-viesti-{{ lookup('community.general.random_string', length=6, special=false, upper=false) }}@{{ maildomain }}"
+  when: viesti_mail is defined and viesti_mail.stdout == ''
+
+- name: Import current Viesti Mail user
+  ansible.builtin.set_fact:
+    viesti_mail_user: '{{ viesti_mail.stdout }}'
+  when: viesti_mail.stdout is defined and viesti_mail.stdout != ''
+
+- name: Extract Viesti APP_SECRET
+  become: yes
+  ansible.builtin.shell:
+    cmd: "grep APP_SECRET {{ viesti_path }}.env.local | awk -F '=' '{ print $2; }'"
+  register: viesti_secret
+  when: config_exists.stat.isreg is defined and config_exists.stat.isreg
+
+- name: Generate new Viesti Secret
+  ansible.builtin.set_fact:
+    viesti_app_secret: "{{ lookup('community.general.random_string', length=32, base64=true) }}"
+  when: viesti_secret is defined and viesti_secret.stdout == ''
+
+- name: Import current Viesti Secret
+  ansible.builtin.set_fact:
+    viesti_app_secret: '{{ viesti_secret.stdout }}'
+  when: viesti_secret.stdout is defined and viesti_secret.stdout != ''
+
+- name: Make sure _dmarc@domain exists
+  ansible.builtin.include_tasks: tasks/db-mailserver-user.yaml
+  vars:
+    _create_user:
+      name: '{{ maildomain }}'
+      email: '_dmarc@{{ maildomain }}'
+      active: 1
+      system_user: 1
+
+# Requires: python3-passlib
+# TODO?: Move to include task for app passwords
+- name: Set/Cycle mail password for Viesti Mail
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ mailserver_db_name }}'
+    query: >
+      insert into `virtual_application_passwords` set
+      `user_id` = (select `user_id` from `virtual_users` where `email` = %(dmarc_mail)s),
+      `application_username` = %(app_user)s,
+      `application_password` = %(app_pass)s,
+      `password_changed` = now()
+      on duplicate key update
+      `application_password` = %(app_pass)s,
+      `password_changed` = now()
+    named_args:
+      dmarc_mail: '_dmarc@{{ maildomain }}'
+      app_user: '{{ viesti_mail_user }}'
+      app_pass: "{{ viesti_mail_password | ansible.builtin.password_hash(hashtype='sha512') }}"
+
+- name: Get MySQL version
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    query: select version() as version
+  register: mysql_version
+
+- name: Generate .env.local
+  become: yes
+  ansible.builtin.template:
+    src: viesti.env.j2
+    dest: '{{ viesti_path }}.env.local'
+
+- name: Run update.sh
+  become: yes
+  ansible.builtin.shell:
+    cmd: '{{ viesti_path }}update.sh'
+
+- name: Run installservice.sh
+  become: yes
+  ansible.builtin.shell:
+    cmd: '{{ viesti_path }}installservice.sh'
+
+- name: Ownership of viesti files
+  become: yes
+  ansible.builtin.file:
+    path: '{{ viesti_path }}'
+    owner: www-data
+    group: www-data
+    recurse: yes
+
+# This is relevant if you store a cleartext password in your vault.
+# It would also be useful for when viesti switches hashing algorithm.
+#- name: Hash Viesti user password
+#  ansible.builtin.shell:
+#    cmd: "php {{ viesti_path }}bin/console security:hash-password -n {{ viesti.password }} | grep 'Password hash' | awk '{ print $3; }'"
+#  register: viesti_hashed_password
+#  when: viesti.password is defined and viesti.password != ''
+
+- name: Generate Viesti user
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ viesti_db_name }}'
+    query: >
+      insert
+      {% mailserver_ansible_source_of_truth is defined and not mailserver_ansible_source_of_truth %}
+      ignore
+      {% endif %}
+      into `users`
+      set
+      `email` = %(email)s,
+      `roles`= '["ROLE_ADMIN"]',
+      `password` = %(password)s,
+      `is_verified` = 1
+      {% mailserver_ansible_source_of_truth not defined or (mailserver_ansible_source_of_truth is defined and mailserver_ansible_source_of_truth) %}
+      on duplicate key update
+      `password` = %(password)s
+      {% endif %}
+    named_args:
+      email: '{{ viesti.user }}'
+      password: '{{ viesti.password }}'
+
+  when:
+  - viesti.user is defined and viesti.user != ''
+  - viesti.password is defined and viesti.password != ''
+
+# Outline for setting up a domain
+# - name: Setup domain
+#  become: yes
+#  community.mysql.mysql_query:
+#    login_unix_socket: /run/mysqld/mysqld.sock
+#    login_db: '{{ viesti_db_name }}'
+#    query: >
+#      insert into `domains` set `fqdn` = %(fqdn)s, `mailhost` = %(mailhost)s
+#    named_args:
+#      fqdn:
+#      mailhost:
+#  when:

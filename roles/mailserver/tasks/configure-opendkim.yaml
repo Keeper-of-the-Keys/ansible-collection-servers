@@ -1,0 +1,33 @@
+# These are the config changes I used to make in OpenDKIM
+# Since I switched to dkimpy-milter for its' support of dual signing (rsa/ed)
+# this has not been tested recently.
+
+# The milter line in main.cf.j2 would also need to be changed.
+# It could be made to be based on a var what to use.
+# Also a socket can be used like in dkimpy-milter
+
+- name: Configure OpenDKIM
+  become: yes
+  ansible.builtin.lineinfile:
+    dest: '{{ item.dest }}'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  notify: restart_opendkim
+  with_items:
+  - dest: /etc/opendkim.conf
+    regexp: ^#?Domain.*$
+    line: "Domain\t\t{{ mail_domain }}"
+  - dest: /etc/opendkim.conf
+    regexp: ^#?Selector.*$
+    line: "Selector\tdkim{{ date_output.stdout }}"
+  - dest: /etc/opendkim.conf
+    regexp: ^#?KeyFile.*$
+    line: "KeyFile\t\t/etc/dkimkeys/dkim{{ date_output.stdout }}.private"
+  - dest: /etc/opendkim.conf
+    regexp: ^#?Socket.*inet:8891@localhost$
+    line: "Socket\t\tinet:8891@localhost"
+  - dest: /etc/opendkim.conf
+    regexp: ^#?Socket.*local:/run/opendkim/opendkim.sock$
+    line: "#Socket\t\tlocal:/run/opendkim/opendkim.sock"
+
+

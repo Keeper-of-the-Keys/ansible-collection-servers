@@ -1,0 +1,59 @@
+- name: Generate MySQL password
+  ansible.builtin.set_fact:
+    mailmanagement_db_pass: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
+  vars:
+    special_list: '-_=+()[]{},./?!@#$^~:'
+
+- name: Create MySQL user or cycle password
+  community.mysql.mysql_user:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: '{{ mailmanagement_db_user }}'
+    password: '{{ mailmanagement_db_pass }}'
+    priv:
+      '{{ mailmanagement_db_name }}.*:SELECT,INSERT,UPDATE,DELETE'
+    state: present
+
+- name: Clone git version
+  become: yes
+  ansible.builtin.git:
+    repo: 'https://github.com/Keeper-of-the-Keys/mailmanagement.git'
+    dest: '{{ mailmanagement_path }}'
+
+# TODO: www-data should probably be a variable
+- name: Set ownership
+  become: yes
+  ansible.builtin.file:
+    path: '{{ mailmanagement_path }}'
+    owner: www-data
+    group: www-data
+    recurse: yes
+
+- name: Make temporary directory
+  ansible.builtin.tempfile:
+    state: directory
+  register: temp_folder
+  delegate_to: localhost
+
+- name: Get template
+  ansible.builtin.fetch:
+    src: '{{ mailmanagement_path }}config.j2'
+    dest: '{{ temp_folder.path }}'
+    flat: yes
+
+- name: Generate config.php
+  become: yes
+  ansible.builtin.template:
+    src: '{{ temp_folder.path }}/config.j2'
+    dest: '{{ mailmanagement_path }}public/config.php'
+
+- name: Remove temporary files
+  ansible.builtin.file:
+    path: '{{ temp_folder.path }}'
+    state: absent
+  delegate_to: localhost
+
+- name: Generate virtualhost config (notify?)
+  ansible.builtin.debug:
+    msg: 'This is not yet implemented in the role/collection, please run the configure-virtualhosts playbook'
+
+# TODO: apache mellon (see superlinks)

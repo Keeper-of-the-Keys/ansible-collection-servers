@@ -1,0 +1,32 @@
+- name: Create dkimpy-milter socket directory
+  become: yes
+  ansible.builtin.file:
+    path: /var/spool/postfix/dkimpy-milter
+    state: directory
+    owner: "{{ mailserver_dkim_user | default('dkimpy-milter') }}"
+    group: "{{ mailserver_dkim_group | default('dkimpy-milter') }}"
+    mode: 750
+
+# TODO: This can probably be done with ansible.builtin.user
+- name: Add postfix user to dkimpy-milter group
+  become: yes
+  ansible.builtin.shell:
+    cmd: /usr/sbin/usermod -aG dkimpy-milter postfix
+
+- name: Configure dkimpy-milter
+  become: yes
+  ansible.builtin.lineinfile:
+    dest: '{{ item.dest }}'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  notify: restart_dkimpy_milter
+  with_items:
+  - dest: /etc/dkimpy-milter/dkimpy-milter.conf
+    regexp: ^#?Domain.*$
+    line: "Domain\t\t{{ mailserver.mail_domain }}"
+  - dest: /etc/dkimpy-milter/dkimpy-milter.conf
+    regexp: ^#?Socket.* local:.*$
+    line: 'Socket local:/var/spool/postfix/dkimpy-milter/dkimpy-milter.sock'
+  - dest: /etc/dkimpy-milter/dkimpy-milter.conf
+    regexp: ^#?Socket.*inet:8892@localhost$
+    line: "#Socket\t\tinet:8892@localhost"

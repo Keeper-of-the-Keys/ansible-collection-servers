@@ -1,0 +1,5 @@
+user = {{ mailserver_dovecot_user_readonly }}
+password = {{ mailserver_dovecot_password_readonly }}
+hosts = {{ mailserver_db_server }}
+dbname = {{ mailserver_db_name }}
+query = select `allowed_sender` from `virtual_senders` where `address` = '%s'

@@ -1,0 +1,25 @@
+---
+# defaults file for mailserver
+mailserver_db_name:               'mailserver'
+mailserver_dovecot_user_readonly: 'dovecot-user'
+mailserver_db_server:             '127.0.0.1'
+mailserver_db_port:               3306
+mailserver_db_schema_current:     2023022
+# mailserver_dovecot_password_readonly -- generated in playbook
+
+# The following just enable the relevant section in master.cf 
+# At this time they DO NOT actually configure postfix to use any of the services or install them.
+mailserver_use_maildrop:  false
+mailserver_use_uucp:      false
+mailserver_use_ifmail:    false
+mailserver_use_bsmtp:     false
+mailserver_use_scalemail: false
+mailserver_use_mailman:   false
+
+mailserver_dkim_user:  'dkimpy-milter'
+mailserver_dkim_group: 'dkimpy-milter'
+mailserver_dkim_keypath: '/etc/dkimkeys/'
+
+mailserver_maildir_base_path: '/var/mail/'
+
+mailmanagement_path: '/var/www/mailmanagement/'

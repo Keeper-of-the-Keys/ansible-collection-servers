@@ -1,0 +1,21 @@
+- name: Insert system info keys
+  ansible.builtin.include_tasks: tasks/db-mailserver-system-info.yaml
+  vars:
+    _system_info:
+      key: '{{ item.key }}'
+      value: '{{ item.value }}'
+      state: "{{ item.state | default('present') }}"
+  loop: '{{ mailserver.system_info }}'
+
+- name: Create domains
+  ansible.builtin.include_tasks: tasks/db-mailserver-domain.yaml
+  loop_control:
+    loop_var: _create_domain
+  loop: '{{ mailserver.domains }}'
+
+- name: Create users
+  ansible.builtin.include_tasks: tasks/db-mailserver-populate-users.yaml
+  loop_control:
+    loop_var: _user
+    label: '{{ _user.1.email }}'
+  loop: "{{ mailserver.domains | subelements('users') }}"

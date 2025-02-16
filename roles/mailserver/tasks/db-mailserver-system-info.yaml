@@ -1,0 +1,26 @@
+# Include so that the query needs to be edited in a single place
+- name: 'Create system_info entry {{ _system_info.key }} with value {{ _system_info.value }}'
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ mailserver_db_name }}'
+    query: >
+      insert into `system_info` set
+      `key` = %(key)s,
+      `value` = %(value)s
+      on duplicate key update
+      `value` = %(value)s
+    named_args: '{{ _system_info }}'
+  when: (_system_info.state is defined and _system_info.state == 'present') or _system_info.state is not defined
+
+- name: 'Delete system_info entry {{ _system_info.key }} with value {{ _system_info.value }}'
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ mailserver_db_name }}'
+    query: >
+      delete from `system_info` where
+      `key` = %(key)s and
+      `value` = %(value)s
+    named_args: '{{ _system_info }}'
+  when: _system_info.state is defined and_system_info.state == 'absent'

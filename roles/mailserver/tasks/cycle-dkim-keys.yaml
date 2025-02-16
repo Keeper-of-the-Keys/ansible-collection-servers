@@ -1,0 +1,121 @@
+- name: Create dkim key folder
+  become: yes
+  ansible.builtin.file:
+    path: "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}"
+    state: directory
+    owner: "{{ mailserver_dkim_user | default('dkimpy-milter') }}"
+    group: "{{ mailserver_dkim_group | default('dkimpy-milter') }}"
+    mode: 0700
+
+- name: Generate date
+  become: no
+  ansible.builtin.shell:
+    cmd: date +%Y%m
+  changed_when: false
+  register: date_output
+
+- name: Generate DKIM keys
+  become: yes
+  ansible.builtin.shell:
+    cmd: '{{ item.cmd }}'
+    chdir: "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}"
+    creates: '{{ item.creates }}'
+  loop:
+  - cmd: '/usr/bin/dknewkey --ktype rsa rsa{{ date_output.stdout }}'
+    creates: "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}rsa{{ date_output.stdout }}.dns"
+  - cmd: '/usr/bin/dknewkey --ktype ed25519 ed{{ date_output.stdout }}'
+    creates: "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}ed{{ date_output.stdout }}.dns"
+# Old command
+#    cmd: /usr/sbin/opendkim-genkey -b 4096 -h sha512 -s dkim{{ date_output.stdout }} -d {{ mail_domain }}
+#    creates: '/etc/dkimkeys/dkim{{ date_output.stdout }}.txt'
+
+- name: Get DKIM key contents
+  become: yes
+  ansible.builtin.shell:
+#    cmd: sed ':a;N;$!ba;s/\"\n\t\s\s\"//g' dkim{{ date_output.stdout }}.txt | awk -F\" '{ print $2; }' | fold -w 255
+    cmd: 'cat {{ item + date_output.stdout }}.dns | fold -w 255'
+    chdir: "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}"
+  register: dkim_keys
+  loop:
+  - rsa
+  - ed
+
+- name: Publish DKIM keys
+  become: no
+  community.general.nsupdate:
+    key_name: '{{ nsupdate.key_name }}'
+    key_secret: '{{ nsupdate.key_secret }}'
+    key_algorithm: '{{ nsupdate.key_algorithm }}'
+    server: '{{ nsupdate.server }}'
+    zone: '{{ nsupdate.zone }}'
+    type: TXT
+    ttl: 3600
+    record: '{{ item.item + date_output.stdout }}._domainkey'
+    value: ["{{ item.stdout | regex_replace('\n', '\" \"') }}"]
+  delegate_to: localhost
+  loop: '{{ dkim_keys.results }}'
+  loop_control:
+    label: '{{ item.item }}'
+
+- name: Modify dkimpy-milter config
+  become: yes
+  ansible.builtin.lineinfile:
+    dest: '{{ item.dest }}'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  notify: restart_dkimpy_milter
+  with_items:
+  - dest: /etc/dkimpy-milter/dkimpy-milter.conf
+    regexp: ^#?Selector\s+.*$
+    line: "Selector\t\trsa{{ date_output.stdout }}"
+  - dest: /etc/dkimpy-milter/dkimpy-milter.conf
+    regexp: ^#?KeyFile\s+.*$
+    line: "KeyFile\t\t\t{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}rsa{{ date_output.stdout }}.key"
+  - dest: /etc/dkimpy-milter/dkimpy-milter.conf
+    regexp: ^#?SelectorEd25519\s+.*$
+    line: "SelectorEd25519\t\ted{{ date_output.stdout }}"
+  - dest: /etc/dkimpy-milter/dkimpy-milter.conf
+    regexp: ^#?KeyFileEd25519\s+.*$
+    line: "KeyFileEd25519\t\t{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}ed{{ date_output.stdout }}.key"
+
+- name: Generate date 2 month ago
+  become: no
+  ansible.builtin.shell:
+    cmd: date +%Y%m -d '2 month ago'
+  changed_when: false
+  register: date_output_2_month_ago
+
+- name: Delete DNS records
+  become: no
+  community.general.nsupdate:
+    key_name: '{{ nsupdate.key_name }}'
+    key_secret: '{{ nsupdate.key_secret }}'
+    key_algorithm: '{{ nsupdate.key_algorithm }}'
+    server: '{{ nsupdate.server }}'
+    zone: '{{ nsupdate.zone }}'
+    type: TXT
+    record: '{{ item + date_output_2_month_ago.stdout }}._domainkey'
+    state: absent
+  delegate_to: localhost
+  loop:
+  - rsa
+  - ed
+
+- name: Delete DKIM files
+  become: yes
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: absent
+  with_items:
+  - "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}rsa{{ date_output_2_month_ago.stdout }}.dns"
+  - "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}rsa{{ date_output_2_month_ago.stdout }}.key"
+  - "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}ed{{ date_output_2_month_ago.stdout }}.dns"
+  - "{{ mailserver_dkim_keypath | default('/etc/dkimkeys/') }}ed{{ date_output_2_month_ago.stdout }}.key"
+
+#handlers:
+#- name: restart dkimpy-milter
+#  ansible.builtin.service:
+#    name: dkimpy-milter
+#    state: restarted
+
+# TODO?: Add a handler to print the keys when nsupdate is not an option.

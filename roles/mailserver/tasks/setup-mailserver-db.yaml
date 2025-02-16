@@ -1,0 +1,30 @@
+# All these tasks run as root to prevent in-flight modification of the schema.
+# (Though you're probably alreay not in a good place if the user you use for ansible would do that)
+# The import needs to be as root through the socket.
+
+- name: Create temporary folder for sql schema
+  become: yes
+  ansible.builtin.tempfile:
+    state: directory
+  register: _temp_folder
+
+- name: Copy mailserver schema
+  become: yes
+  ansible.builtin.copy:
+    src: 'files/mailserver.schema.{{ mailserver_db_schema_current }}.sql'
+    dest: '{{ _temp_folder.path }}'
+
+- name: Import mailserver db schema
+  become: yes
+  community.mysql.mysql_db:
+    name: '{{ mailserver_db_name }}'
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    state: import
+    target: '{{ _temp_folder.path }}/mailserver.schema.{{ mailserver_db_schema_current }}.sql'
+  when: database_created is changed
+
+- name: Delete temporary folder
+  become: yes
+  ansible.builtin.file:
+    path: '{{ _temp_folder.path }}'
+    state: absent

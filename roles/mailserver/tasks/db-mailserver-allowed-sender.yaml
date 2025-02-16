@@ -1,0 +1,26 @@
+# Include so that the query needs to be edited in a single place
+- name: 'Create sender allowance for {{ _create_sender.allowed_sender }} to send from {{ _create_sender.address }}'
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ mailserver_db_name }}'
+    query: >
+      insert ignore into `virtual_senders` set
+      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s),
+      `address` = %(address)s,
+      `allowed_sender` = %(allowed_sender)s
+    named_args: '{{ _create_sender }}'
+  when: (_create_sender.state is defined and _create_sender.state == 'present') or _create_sender.state is not defined
+
+- name: 'Delete sender allowance for {{ _create_sender.allowed_sender }} to send from {{ _create_sender.address }}'
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ mailserver_db_name }}'
+    query: >
+      delete from `virtual_senders` where
+      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s) and
+      `address` = %(address)s and
+      `allowed_sender` = %(allowed_sender)s
+    named_args: '{{ _create_sender }}'
+  when: _create_sender.state is defined and_create_sender.state == 'absent'

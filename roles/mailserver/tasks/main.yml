@@ -1,0 +1,40 @@
+- name: Install packages - debian
+  ansible.builtin.include_tasks: tasks/install-packages-debian.yaml
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Setup mailserver database
+  ansible.builtin.include_tasks: tasks/setup-mailserver-db-and-configs.yaml
+
+- name: Make sure certs are issued
+  ansible.builtin.include_role:
+    name: keeperofthekeys.servers.acme_certs_with_tlsa
+  vars:
+    no_service_restart: true
+
+- name: Configure dovecot
+  ansible.builtin.include_tasks: tasks/configure-dovecot.yaml
+
+#TODO: - name: Configure amavisd
+
+# Replaced by dkimpy-milter and now untested
+#- name: Configure postfix/opendkim
+#  ansible.builtin.include_tasks: tasks/configure-opendkim.yaml
+
+- name: Configure dkimpy-milter
+  ansible.builtin.include_tasks: tasks/configure-dkimpy-milter.yaml
+
+- name: Generate/cycle DKIM keys
+  ansible.builtin.include_tasks: tasks/cycle-dkim-keys.yaml
+
+- name: Configure opendmarc
+  ansible.builtin.include_tasks: tasks/configure-opendmarc.yaml
+
+- name: Setup Vietsi Reports
+  ansible.builtin.include_tasks: tasks/setup-viesti-reports.yaml
+
+# TODO: mellon automation is missing and maybe automate ipsilon?
+- name: Setup mailserver webUI
+  ansible.builtin.include_tasks: tasks/setup-mailmanagement.yaml
+
+#TODO: - name: Open firewall
+#  ansible.builtin.include_role:

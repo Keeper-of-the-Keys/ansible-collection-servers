@@ -1,0 +1,107 @@
+- name: Copy dovecot configs
+  become: yes
+  ansible.builtin.template:
+    src: '{{ item.src }}'
+    dest: '{{ item.dest }}'
+  notify: restart_dovecot
+  with_items:
+# Replaced with lineinfile below.
+#  - src: dovecot.10-ssl.conf.j2
+#    dest: /etc/dovecot/conf.d/10-ssl.conf
+  - src: dovecot-auth-lua.conf.ext.j2
+    dest: /etc/dovecot/conf.d/auth-lua.conf.ext
+
+# On Debian based systems this is 8 which is why the default in the next task is 8.
+- name: Determine uid of mail user
+  become: no
+  ansible.builtin.shell:
+    cmd: id -u mail
+  register: mail_uid
+
+- name: Modify dovecot config lines
+  become: yes
+  ansible.builtin.lineinfile:
+    dest: '{{ item.dest }}'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  notify: restart_dovecot
+  with_items:
+  - dest: /etc/dovecot/conf.d/10-auth.conf
+    regexp: '^#?disable_plaintext_auth'
+    line: 'disable_plaintext_auth = yes'
+  - dest: /etc/dovecot/conf.d/10-auth.conf
+    regexp: '^auth_mechanisms = plain'
+    line: 'auth_mechanisms = plain login'
+  - dest: /etc/dovecot/conf.d/10-auth.conf
+    regexp: '^!include auth-system.conf.ext'
+    line: '#!include auth-system.conf.ext'
+#  - dest: /etc/dovecot/conf.d/10-auth.conf
+#    regexp: '^#!include auth-sql.conf.ext'
+#    line: '!include auth-sql.conf.ext'
+  - dest: /etc/dovecot/conf.d/10-auth.conf
+    regexp: '^#!include auth-lua.conf.ext'
+    line: '!include auth-lua.conf.ext'
+  - dest: /etc/dovecot/conf.d/10-mail.conf
+    regexp: '^#?mail_location = mbox:~/mail:INBOX={{ mailserver_maildir_base_path }}%u'
+    line: 'mail_location = maildir:{{ mailserver_maildir_base_path }}%d/%n'
+  - dest: /etc/dovecot/conf.d/10-mail.conf
+    regexp: '^#?first_valid_uid'
+    line: 'first_valid_uid = {{ mail_uid.stdout | default(8) }}'
+  - dest: /etc/dovecot/conf.d/10-mail.conf
+    regexp: '^#?last_valid_uid'
+    line: 'last_valid_uid = {{ mail_uid.stdout | default(8) }}'
+  - dest: /etc/dovecot/conf.d/10-ssl.conf
+    regexp: '^ssl_cert'
+    line: 'ssl_cert = <{{ acme_defaults.path_remote + mailserver.hostname_smtp }}-fullchain.crt'
+  - dest: /etc/dovecot/conf.d/10-ssl.conf
+    regexp: '^ssl_key'
+    line: 'ssl_key = <{{ acme_defaults.path_remote + mailserver.hostname_smtp }}.key'
+  - dest: /etc/dovecot/conf.d/10-ssl.conf
+    regexp: '^#?ssl_min_protocol'
+    line: 'ssl_min_protocol = TLSv1.3'
+  - dest: /etc/dovecot/conf.d/10-ssl.conf
+    regexp: '^#?ssl_cipher_list'
+    line: 'ssl_cipher_list = EECDH+AESGCM:EDH+AESGCM'
+  - dest: /etc/dovecot/conf.d/10-ssl.conf
+    regexp: '^#?ssl_prefer_server_ciphers'
+    line: 'ssl_prefer_server_ciphers = yes'
+  - dest: /etc/dovecot/conf.d/10-ssl.conf
+    regexp: '^#?ssl_options'
+    line: 'ssl_options = compression'
+  - dest: /etc/dovecot/conf.d/20-lmtp.conf
+    regexp: '^#?lmtp_save_to_detail_mailbox'
+    line: 'lmtp_save_to_detail_mailbox = yes'
+# Sieve is disabled until I figure out how to get sieve scripts from SQL.
+#    - dest: /etc/dovecot/conf.d/20-lmtp.conf
+#      regexp: '^  #?mail_plugins = \$mail_plugins'
+#      line: '  mail_plugins = $mail_plugins sieve'
+#    - dest:
+#      regexp:
+#      line:
+
+- name: Modify dovecot configuarion blocks
+  become: yes
+  ansible.builtin.replace:
+    path: '{{ item.path }}'
+    regexp: '{{ item.regexp }}'
+    replace: '{{ item.replace }}'
+  with_items:
+  - path: /etc/dovecot/conf.d/10-master.conf
+    regexp: '^  #(unix_listener /var/spool/postfix/private/auth {)\n^  #(  mode = 0666)\n^  #(})'
+    replace: '  \1\n  \2\n  \3'
+  - path: /etc/dovecot/conf.d/15-mailboxes.conf
+    regexp: '(  mailbox Drafts {)\n(    special_use = \\Drafts)\n(  })'
+    replace: '\1\n    auto = subscribe\n\2\n\3'
+  - path: /etc/dovecot/conf.d/15-mailboxes.conf
+    regexp: '(  mailbox Sent {)\n(    special_use = \\Sent)\n(  })'
+    replace: '\1\n    auto = subscribe\n\2\n\3'
+  - path: /etc/dovecot/conf.d/15-mailboxes.conf
+    regexp: '(  mailbox Junk {)\n(    special_use = \\Junk)\n(  })'
+    replace: '\1\n    auto = subscribe\n\2\n\3'
+  - path: /etc/dovecot/conf.d/15-mailboxes.conf
+    regexp: '(  mailbox Trash {)\n(    special_use = \\Trash)\n(  })'
+    replace: '\1\n    auto = subscribe\n\2\n\3'
+#  - path:
+#    regexp:
+#    replace:
+

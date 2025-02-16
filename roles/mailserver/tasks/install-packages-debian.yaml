@@ -1,0 +1,48 @@
+- name: Debconf postfix
+  become: yes
+  ansible.builtin.debconf:
+    name: postfix
+    question: '{{ item.question }}'
+    value: '{{ item.value }}'
+    vtype: '{{ item.vtype }}'
+  with_items:
+  - question: postfix/mailname
+    value: '{{ mailserver.mail_domain }}'
+    vtype: string
+  - question: postfix/main_mailer_type
+    value: Internet Site
+    vtype: select
+  - question: postfix/recipient_delim
+    value: '-'
+    vtype: string
+
+- name: Install Postfix, Dovecot and dependencies
+  become: yes
+  ansible.builtin.package:
+    name:
+    - postfix
+    - postfix-mysql
+    - postfix-policyd-spf-python
+    - dovecot-mysql
+    - dovecot-imapd
+    - dovecot-sieve
+    - dovecot-lmtpd
+    - dovecot-auth-lua
+#    - opendkim
+#    - opendkim-tools
+    - dkimpy-milter
+    - amavisd-new
+    - opendmarc
+#    - python3-mysqldb
+    - luarocks
+    - liblua5.4-dev
+    - lua-dbi-mysql
+    - lua-ldap
+    - python3-pymysql
+    state: latest
+
+- name: Install lua-crypt
+  become: yes
+  ansible.builtin.shell:
+    cmd: /usr/bin/luarocks-5.4 install lua-crypt
+

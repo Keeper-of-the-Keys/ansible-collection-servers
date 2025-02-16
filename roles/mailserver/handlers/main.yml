@@ -1,0 +1,29 @@
+- name: restart_dkimpy_milter
+  become: yes
+  ansible.builtin.service:
+    name: dkimpy-milter
+    state: restarted
+
+- name: restart_dovecot
+  become: yes
+  ansible.builtin.service:
+    name: dovecot
+    state: restarted
+
+- name: restart_opendkim
+  become: yes
+  ansible.builtin.service:
+    name: opendkim
+    state: restarted
+
+- name: restart_opendmarc
+  become: yes
+  ansible.builtin.service:
+    name: opendmarc
+    state: restarted
+
+- name: restart_postfix
+  become: yes
+  ansible.builtin.service:
+    name: postfix
+    state: restarted

@@ -1,0 +1,6 @@
+user = {{ mailserver_dovecot_user_readonly }}
+password = {{ mailserver_dovecot_password_readonly }}
+hosts = {{ mailserver_db_server }}
+dbname = {{ mailserver_db_name }}
+query = SELECT 1 FROM `virtual_domains` WHERE `domain` = '%s'
+

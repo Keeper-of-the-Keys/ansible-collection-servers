@@ -1,0 +1,89 @@
+# TODO: rename vars and create in role
+#  vars:
+#    user_readonly: dovecot-user
+#    db_name: mailserver
+
+- name: Generate random password
+  become: no
+  ansible.builtin.set_fact:
+    mailserver_dovecot_password_readonly: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
+  vars:
+    special_list: '-_=+()[]{},./?!@#$^~:'
+
+- name: Create mailserver db
+  become: yes
+  community.mysql.mysql_db:
+    name: '{{ mailserver_db_name }}'
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    state: present
+  register: database_created
+
+- name: Import database schema
+  ansible.builtin.include_tasks: tasks/setup-mailserver-db.yaml
+  when: database_created is changed
+
+- name: Determine schema version
+  become: yes
+  community.mysql.mysql_query:
+    login_db: '{{ mailserver_db_name }}'
+    query: Select `value` from `system_info` where `key` = 'schema_version';
+    login_unix_socket: /run/mysqld/mysqld.sock
+  register: schema_version
+  when: database_created is not changed
+
+# TODO: upgrade if needed
+- name: Schema version
+  ansible.builtin.debug:
+    msg: "{{ schema_version.query_result[0][0]['value'] | to_nice_yaml }}"
+  when:
+  - schema_version is succeeded
+  - schema_version.rowcount[0] == 1
+#  - schema_version. == {{ mailserver_db_schema_current }}
+
+- name: Populate database
+  ansible.builtin.include_tasks: tasks/db-mailserver-populate.yaml
+  when: database_created is changed or mailserver_ansible_source_of_truth not defined or mailserver_ansible_source_of_truth
+
+# TODO/TBD: dovecot and postfix users?
+# Postfix read only, no password hashes, only procedures?
+# Dovecot/lua yes password hashes
+
+- name: Create user or cycle password
+  become: yes
+  community.mysql.mysql_user:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: '{{ mailserver_dovecot_user_readonly }}'
+    password: '{{ mailserver_dovecot_password_readonly }}'
+    priv:
+      '{{ mailserver_db_name }}.*:SELECT/{{ mailserver_db_name }}.virtual_application_password_log:INSERT/PROCEDURE {{ mailserver_db_name }}.resolve_alias:EXECUTE'
+    state: present
+
+- name: Copy postfix configs
+  become: yes
+  ansible.builtin.template:
+    src: '{{ item.src }}'
+    dest: '{{ item.dest }}'
+  notify: restart_postfix
+  loop:
+  - src: postfix.main.cf.j2
+    dest: /etc/postfix/main.cf
+  - src: postfix.master.cf.j2
+    dest: /etc/postfix/master.cf
+  - src: mysql-virtual-alias-maps.cf.j2
+    dest: /etc/postfix/mysql-virtual-alias-maps.cf
+  - src: mysql-virtual-mailbox-domains.cf.j2
+    dest: /etc/postfix/mysql-virtual-mailbox-domains.cf
+  - src: mysql-virtual-mailbox-maps.cf.j2
+    dest: /etc/postfix/mysql-virtual-mailbox-maps.cf
+  - src: mysql-virtual-sender-maps.cf.j2
+    dest: /etc/postfix/mysql-virtual-sender-maps.cf
+
+- name: Copy dovecot configs
+  become: yes
+  ansible.builtin.template:
+    src: '{{ item.src }}'
+    dest: '{{ item.dest }}'
+  notify: restart_dovecot
+  loop:
+  - src: dovecot-auth-lua.j2
+    dest: /etc/dovecot/dovecot-auth.lua

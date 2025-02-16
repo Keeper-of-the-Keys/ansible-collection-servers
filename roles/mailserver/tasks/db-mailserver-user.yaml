@@ -1,0 +1,26 @@
+# Include so that the query needs to be edited in a single place
+# Users don't get deleted, only marked as inactive (this is to avoid username recycling which is bad)
+# TODO: match up-to-date schema
+
+- name: 'Make sure user is set to inactive'
+  ansible.builtin.set_fact:
+    _create_user.active: 0
+  when: _create_user.state is defined and _create_user.state == 'absent'
+
+- name: 'Create user {{ create_user.email }}'
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ mailserver_db_name }}'
+    query: >
+      insert into `virtual_users` set
+      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s),
+      `email` = %(email)s,
+      `active` = %(active)s
+      on duplicate key update
+      `active` = %(active)s
+    named_args:
+      name: '{{ _create_user.name }}'
+      email: '{{ _create_user.email }}'
+      active: '{{ _create_user.active | default(1) }}'
+      system_user: '{{ _create_user.system_user | default(0) }}'

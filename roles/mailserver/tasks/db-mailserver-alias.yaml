@@ -1,0 +1,31 @@
+# Include so that the query needs to be edited in a single place
+- name: 'Create alias {{ _create_alias.source }} > {{ _create_alias.destination }}'
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ mailserver_db_name }}'
+    query: >
+      insert ignore into `virtual_aliases` set
+      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s),
+      `source` = %(source)s,
+      `destination` = %(destination)s,
+      `requires_identifier` = %(requires_identifier)s
+    named_args:
+      name: '{{ _create_alias.name }}'
+      source: '{{ _create_alias.source }}'
+      destination: '{{ _create_alias.destination }}'
+      requires_identifier: '{{ _create_alias.requires_identifier | default(0) }}'
+  when: (_create_alias.state is defined and _create_alias.state == 'present') or _create_alias.state is not defined
+
+- name: 'Delete alias {{ _create_alias.source }} > {{ _create_alias.destination }}'
+  become: yes
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: '{{ mailserver_db_name }}'
+    query: >
+      delete from `virtual_aliases` where
+      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s) and
+      `source` = %(source)s and
+      `destination` = %(destination)s
+    named_args: '{{ _create_alias }}'
+  when: _create_alias.state is defined and _create_alias.state == 'absent'

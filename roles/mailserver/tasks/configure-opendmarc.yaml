@@ -1,0 +1,6 @@
+- name: Configure opendmarc
+  become: yes
+  ansible.builtin.template:
+    src: opendmarc.conf.j2
+    dest: /etc/opendmarc.conf
+  notify: restart_opendmarc

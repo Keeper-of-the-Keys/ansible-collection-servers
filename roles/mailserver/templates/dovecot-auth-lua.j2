@@ -1,0 +1,406 @@
+-- TODO:
+-- 1. implement writelog to keep track of password usage (db table already exists)
+-- 2. implement dovecot userdb function
+
+-- Includes
+-- local dovecot = require 'dovecot.auth'
+local DBI = require 'DBI'
+
+-- MySQL connection details
+local db = {}
+db.name = '{{ mailserver_db_name }}'
+db.username = '{{ mailserver_dovecot_user_readonly }}'
+db.password = '{{ mailserver_dovecot_password_readonly }}'
+db.host = '{{ mailserver_db_server }}'
+db.port = '{{ mailserver_db_port }}'
+
+local dbh = assert(DBI.Connect('MySQL', db.name, db.username, db.password, db.host, db.port))
+dbh:autocommit(true)
+local alive = dbh:ping()
+
+local lualdap
+local ldh
+
+-- TODO: Rewrite query functions into single function that takes the query string and arg.
+
+function getDomainConfig(domain)
+	local getConfigQuery = 'select `backend_type`, `backend_uri`, `ldap_bind_dn`, `ldap_bind_password`, `ldap_base_dn`, `allow_primary_password`, `ldap_sync_cron` from `virtual_domains` where `domain` = ?'
+	
+	local sth = assert(dbh:prepare(getConfigQuery))
+
+	sth:execute(domain)
+
+	return sth:fetch(true)
+end
+
+function getUserDetailsSQL(username)
+	local getUserQuery = [[
+		select
+		`virtual_users`.`user_id` as `mail_user_id`,
+		`virtual_users`.`email` as `email`,
+		`virtual_users`.`active` as `active`,
+		`virtual_users`.`system_user` as `system_user`,
+		`virtual_application_passwords`.`password_id` as `mail_password_id`,
+		`virtual_application_passwords`.`application_password` as `mail_password_hash`
+		from
+		`virtual_application_passwords`
+		inner join `virtual_users` on
+		`virtual_users`.`user_id` = `virtual_application_passwords`.`user_id`
+		where `virtual_application_passwords`.`application_username` = ?
+		]]
+
+	local sth = assert(dbh:prepare(getUserQuery))
+	sth:execute(username)
+
+	return sth:fetch(true)
+end
+
+function getPrimaryUserDetailsSQL(username, allow_primary_password)
+	-- The assignment using [[]] is done mainly for code readability and a nice output should you want to print the query for debug purposes.
+	local getPrimaryUserQuery = [[
+		select
+		`user_id` as `mail_user_id`,
+		`email` as `email`,
+		`active` as `active`,
+		`system_user` as `system_user`,
+]]
+
+	if (allow_primary_password == 1) then
+		getPrimaryUserQuery = getPrimaryUserQuery..[[
+		`primary_password` as `mail_password_hash`,
+]]
+	else
+		getPrimaryUserQuery = getPrimaryUserQuery..[[
+		'' as `mail_password_hash`,
+]]
+	end
+
+	getPrimaryUserQuery = getPrimaryUserQuery..[[
+		0 as `mail_password_id`
+		from
+		`virtual_users`
+		where
+		`email` = ?
+	]]
+
+	local sth = assert(dbh:prepare(getPrimaryUserQuery))
+	sth:execute(username)
+
+	return sth:fetch(true)
+end
+
+function dereferenceAlias(email)
+-- Query if full dereferencing and all forwarding addresses were needed:
+--	local getLocalMail = [[
+--		with recursive `cte` as ( 
+--			select `tmp`.* from 
+--			virtual_aliases as `tmp` 
+--			where `tmp`.`source` = ? 
+--			union all 
+--			select `tmp`.* from 
+--			`cte` join 
+--			`virtual_aliases` as `tmp` on 
+--			`cte`.`destination` = `tmp`.`source` 
+--			where `cte`.`source` != `cte`.`destination`
+--		) select `cte`.`destination`, `virtual_users`.`active`, `virtual_users`.`system_user` 
+--			from `cte` left join `virtual_users` on `virtual_users`.`email` = `cte`.`destination` 
+--			where not exists 
+--				( select 1 from `virtual_aliases`
+--					where 
+--						(`cte`.`source` != `cte`.`destination` and `virtual_aliases`.`source` = `cte`.`destination`)
+--				); 
+--	]]
+-- Query for this context which only needs to derefernce to a single valid system mailbox (postfix should have done the other dereferncing):
+	local getLocalMail = [[
+		with recursive `cte` as ( 
+			select `tmp`.* from 
+			virtual_aliases as `tmp` 
+			where `tmp`.`source` = ? 
+			union all 
+			select `tmp`.* from 
+			`cte` join 
+			`virtual_aliases` as `tmp` on 
+			`cte`.`destination` = `tmp`.`source` 
+			where `cte`.`source` != `cte`.`destination`
+		) select `virtual_users`.`email`, `virtual_users`.`active`, `virtual_users`.`system_user` 
+			from `cte` inner join `virtual_users` on `virtual_users`.`email` = `cte`.`destination` 
+			where not exists 
+				( select 1 from `virtual_aliases`
+					where 
+						(`cte`.`source` != `cte`.`destination` and `virtual_aliases`.`source` = `cte`.`destination`)
+				); 
+	]]
+
+	local sth = assert(dbh:prepare(getLocalMail))
+	sth:execute(email)
+
+	return sth:fetch(true)
+end
+
+function ldapSearch(base, scope, attrs, filter)
+	local ldapResult = {}
+	for dn, attributes in ldh:search { base = base, scope = scope, attrs = attrs, filter = filter } do
+		local item = {}
+		item.dn = dn
+
+		for name, value in pairs(attributes) do
+			item[name] = value
+		end
+		table.insert(ldapResult, item)
+	end
+	return ldapResult
+end
+
+function writeLog(userDetails, request)
+	if (request.client_id ~= nil) then
+		print('client_id: '..request.client_id)
+	end
+	if (request.home ~= nil) then
+		print('home: '..request.home)
+	end
+	if(request.lip ~= nil) then
+		print('lip: '..request.lip)
+	end
+	if(request.local_name ~= nil) then
+		print('local_name: '..request.local_name)
+	end
+	if(request.login_domain ~= nil) then
+		print('login_domain: '..request.login_domain)
+	end
+	if(request.master_user ~= nil) then
+		print('master_user: '..request.master_user)
+	end
+	if(request.mech ~= nil) then
+		print('mech: '..request.mech)
+	end
+	if(request.pid ~= nil) then
+		print('pid: '..request.pid)
+	end
+	if(request.real_lip ~= nil) then
+		print('real_lip: '..request.real_lip)
+	end
+	if(request.real_lport ~= nil) then
+		print('real_lport: '..request.real_lport)
+	end
+	if(request.real_rip ~= nil) then
+		print('real_rip: '..request.real_rip)
+	end
+	if(request.real_port ~= nil) then
+		print('real_port: '..request.real_port)
+	end
+	if(request.rip ~= nil) then
+		print('rip: '..request.rip)
+	end
+	if(request.secured ~= nil) then
+		print('secured: '..request.secured)
+	end
+	if(request.service ~= nil) then
+		print('service: '..request.service)
+	end
+	if(request.session ~= nil) then
+		print('session: '..request.session)
+	end
+	if(request.session_pid ~= nil) then
+		print('session_pid: '..request.session_pid)
+	end
+	if(request.user ~= nil) then
+		print('user: '..request.user)
+	end
+	if(request.username ~= nil) then
+		print('username: '..request.username)
+	end
+end
+
+function auth_password_verify(request, password)
+	local auth_success = false
+	local config
+
+	if (request.domain == nil) then
+		return dovecot.auth.PASSDB_RESULT_INTERNAL_FAILURE, "No domain provided."
+	else
+		config = getDomainConfig(request.domain)
+		if (config == nil) then
+			return dovecot.auth.PASSDB_RESULT_INTERNAL_FAILURE, 'Unknown domain: '..request.domain
+		end
+	end
+
+	local sqlUserDetails = getUserDetailsSQL(request.user)
+
+	if (sqlUserDetails == nil and config.allow_primary_password == 1) then
+		sqlUserDetails = getPrimaryUserDetailsSQL(request.user, config.allow_primary_password)
+
+		if (sqlUserDetails == nil and config.backend_type == 'MySQL') then
+			return dovecot.auth.PASSDB_RESULT_USER_UNKNOWN, 'Unknown user: '..request.user
+		end
+	end
+
+	if (sqlUserDetails ~= nil and sqlUserDetails.mail_password_hash ~= '') then
+		local crypt = require 'crypt'
+		if (crypt == nil) then
+			return dovecot.auth.PASSDB_RESULT_INTERNAL_FAILURE, 'Failed to load crypt.'
+		end
+		if (crypt.check(password, sqlUserDetails.mail_password_hash)) then
+			auth_success = true
+		end
+	end
+
+	-- Disabled/active should only be returned to users with valid credentials and not before that since it would leak information otherwise.
+	if (auth_success == true and (config.backend_type == 'MySQL' or (config.backend_type == 'LDAP' and config.ldap_sync_cron == 1)) and sqlUserDetails.active == 0) then
+		return dovecot.auth.PASSDB_RESULT_USER_DISABLED, 'User '..request.user..' is disabled.'
+	end
+
+	if (config.backend_type == 'LDAP') then
+		ldap = require "lualdap"
+		ldh, err = ldap.open_simple (config.backend_uri, config.ldap_bind_dn, config.ldap_bind_password, true)
+		if (ldh == nil) then
+			return dovecot.auth.PASSDB_RESULT_INTERNAL_FAILURE, 'LDAP open_simple failed: '..err
+		end
+	end 
+
+	-- System users are assumed to only exist in the database, or at a different base and disabled thus this check is irrelevant.
+	if (config.backend_type == 'LDAP' and auth_success == true and config.ldap_sync_cron == 0 and sqlUserDetails.system_user == 0) then
+		local ldapData = ldapSearch(config.ldap_base_dn, 'subtree', {'uid', 'nsaccountlock'}, 'mail='..sqlUserDetails.email)
+
+		if (ldapData == nil or #ldapData == 0) then
+			return dovecot.auth.PASSDB_RESULT_INTERNAL_FAILURE, 'No matching LDAP records returned or LDAP failure.'
+		end
+
+		for i=1, #ldapData do
+			local usernameStart = string.find(sqlUserDetails.email, ldapData[i].uid, 1, true)
+			local usernameLength = string.len(ldapData[i].uid)
+			local firstAt = string.find(sqlUserDetails.email, '@', 1, true)
+
+			if (usernameStart == 1 and (usernameStart + usernameLength) == firstAt) then
+				if (ldapData[i].nsaccountlock) then
+					return dovecot.auth.PASSDB_RESULT_USER_DISABLED, 'User disabled: '..request.user
+				end
+
+				break
+			end
+		end
+	end
+
+	local ldapUserInfo
+	if (config.backend_type == 'LDAP' and auth_success == false and config.allow_primary_password == 1 and sqlUserDetails.system_user == 0) then
+		local ldapData = ldapSearch(config.ldap_base_dn, 'subtree', {'uid'}, 'mail='..request.user)
+
+		if (ldapData == nil or #ldapData == 0) then
+			return dovecot.auth.PASSDB_RESULT_INTERNAL_FAILURE, 'No matching LDAP records returned or LDAP failure.'
+		end
+
+		for i=1, #ldapData do
+			local usernameStart, usernameEnd = string.find(request.user, ldapData[i].uid, 1, true)
+			local usernameLength = string.len(ldapData[i].uid)
+			local firstAt = string.find(request.user, '@', 1, true)
+
+			if (usernameStart == 1 and (usernameStart + usernameLength) == firstAt) then
+				local conn, err	= ldh:bind_simple(ldapData[i].dn, password)
+
+				if (conn == nil) then
+					return dovecot.auth.PASSDB_RESULT_USER_DISABLED, 'User disabled: '..request.user..'\nLDAP Error: '..err
+				else
+					auth_success = true
+					ldapUserInfo = ldapData[i]
+					
+					break
+				end
+			end
+		end
+	end
+
+	if (auth_success and sqlUserDetails ~= nil) then
+		writeLog(sqlUserDetails, request)
+		return dovecot.auth.PASSDB_RESULT_OK, 'user='..sqlUserDetails.email
+	end
+	if (auth_success and ldapUserInfo ~= nil) then
+		-- Create virtual_users entry and write log??
+		--
+		-- if(config.create_users) then
+		--	createUser()
+		--	getPrimaryUserDetailsSQL()
+		--	writelog()
+		--
+		-- Alternative: send mail to sysadmin/user to encourage registration in mgmt interface
+		-- Also only relevant when primary password is allowed.
+		-- 
+		-- All in all cron sync to db is probably the cleanest/best
+		return dovecot.auth.PASSDB_RESULT_OK, 'user='..request.user
+	end
+
+	return dovecot.auth.PASSDB_RESULT_INTERNAL_FAILURE, 'Reached end with no decision'
+end
+
+function auth_userdb_lookup(request)
+	local config
+
+	if (request.domain == nil) then
+		return dovecot.auth.USERDB_RESULT_INTERNAL_FAILURE, 'No domain provided.'
+	else
+		config = getDomainConfig(request.domain)
+		if (config == nil) then
+			return dovecot.auth.USERDB_RESULT_INTERNAL_FAILURE, 'Unknown domain: '..request.domain
+		end
+	end
+
+	local localMail = dereferenceAlias(request.user)
+
+	if (	localMail ~= nil 
+		and (
+			config.backend_type == 'MySQL' 
+			or (	config.backend_type == 'LDAP' 
+				and (	config.ldap_sync_cron == 1 
+					or localMail.system_user == 1
+				)
+			)
+		) and localMail.active == 1) then
+		return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail user='..localMail.email
+	end
+
+	if (localMail ~= nil) then
+		request.user = localMail.email
+	end
+
+	local sqlUserDetails = getPrimaryUserDetailsSQL(request.user)
+
+	if (sqlUserDetails == nil and config.backend_type == 'MySQL') then
+		return dovecot.auth.USERDB_RESULT_USER_UNKNOWN, 'Unknown user: '..request.user 
+	end
+
+	if (sqlUserDetails ~= nil and sqlUserDetails.active == 1 and (config.backend_type == 'MySQL' or (config.backend_type == 'LDAP' and (config.ldap_sync_cron == 1 or sqlUserDetails.system_user == 1)))) then
+		return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail'
+	end
+
+	if (config.backend_type == 'LDAP') then
+		ldap = require 'lualdap'
+		ldh, err = ldap.open_simple (config.backend_uri, config.ldap_bind_dn, config.ldap_bind_password, true)
+		if (ldh == nil) then
+			return dovecot.auth.USERDB_RESULT_INTERNAL_FAILURE, 'LDAP open_simple failed: '..err
+		end
+
+		local ldapData = ldapSearch(config.ldap_base_dn, 'subtree', {'uid', 'nsaccountlock'}, 'mail='..sqlUserDetails.email)
+
+		if (ldapData == nil or #ldapData == 0) then
+			return dovecot.auth.USERDB_RESULT_USER_UNKNOWN, 'Unknown user: '..request.user
+		end
+
+		for i=1, #ldapData do
+			local usernameStart = string.find(sqlUserDetails.email, ldapData[i].uid, 1, true)
+			local usernameLength = string.len(ldapData[i].uid)
+			local firstAt = string.find(sqlUserDetails.email, '@', 1, true)
+
+			if (usernameStart == 1 and (usernameStart + usernameLength) == firstAt) then
+				-- Does it matter if the account is disabled for this? Disabled should result in a bounce message... TODO?
+				--if (ldapData[i].nsaccountlock) then
+				--	return dovecot.auth.USERDB_RESULT_INTERNAL_FAILURE, 'User disabled: '..request.user
+				--end
+				if (localMail ~= nil) then
+					return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail user='..localMail.email
+				end
+				return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail'
+			end
+		end
+	end
+
+	-- TODO? add passwd integration?
+	return dovecot.auth.USERDB_RESULT_INTERNAL_FAILURE, 'Inconclusive end reached'
+end
