@@ -1,11 +1,11 @@
-- name: 'Generate LDAP bind password for {{ _create_domain.name }}'
+- name: 'Generate LDAP bind password for {{ _create_domain.domain }}'
   ansible.builtin.set_fact:
     _ldap_bind_password: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
   vars:
     special_list: '-_=+()[]{},./?!@#$^~:'
   when: _create_domain.backend_type == 'LDAP'
 
-- name: 'Setup LDAP credentials for {{ _create_domain.name }}'
+- name: 'Setup LDAP credentials for {{ _create_domain.domain }}'
   ansible.builtin.include_tasks: tasks/ldap-create-cycle-user-password.yaml
   vars:
     _ldap:
@@ -18,14 +18,14 @@
       password: '{{ _ldap_bind_password }}'
   when: _create_domain.backend_type == 'LDAP'
 
-- name: 'Create Domain {{ _create_domain.name }}'
+- name: 'Create Domain {{ _create_domain.domain }}'
   become: yes
   community.mysql.mysql_query:
     login_unix_socket: /run/mysqld/mysqld.sock
     login_db: '{{ mailserver_db_name }}'
     query: >
       insert into `virtual_domains` set
-      `name` = %(name)s,
+      `domain` = %(domain)s,
       `backend_type` = %(backend_type)s,
       `backend_uri` = %(backend_uri)s,
       `ldap_bind_dn` = %(ldap_bind_dn)s,
@@ -42,7 +42,7 @@
       `ldap_sync_cron` = %(ldap_sync_cron)s,
       `allow_primary_password` = %(allow_primary_password)s
     named_args:
-      name: '{{ _create_domain.name }}'
+      domain: '{{ _create_domain.domain }}'
       backend_type: '{{ _create_domain.backend_type }}'
       backend_uri: "{{ _create_domain.backend_uri | default('') }}"
       ldap_bind_dn: "{{ _create_domain.ldap_bind_dn | default('') }}"
@@ -53,7 +53,7 @@
   when: (_create_domain.state is defined and _create_domain.state == 'present') or _create_domain.state is not defined
 
 # TODO: Decide if deletion is appropriate or just marking as inactive.
-- name: 'Delete domain {{ _create_domain.name }}'
+- name: 'Delete domain {{ _create_domain.domain }}'
   ansible.builtin.debug:
     msg: Domain deletion is currently not implemented due to the potential harm of recursive config removal
   when: _create_domain.state is defined and _create_domain.state == 'absent'
