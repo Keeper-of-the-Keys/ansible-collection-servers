@@ -2,5 +2,5 @@ user = {{ mailserver_dovecot_user_readonly }}
 password = {{ mailserver_dovecot_password_readonly }}
 hosts = {{ mailserver_db_server }}
 dbname = {{ mailserver_db_name }}
-query = SELECT `destination` FROM `virtual_aliases` WHERE `source`='%s'
+query = CALL `resolve_alias`('%s')
 
