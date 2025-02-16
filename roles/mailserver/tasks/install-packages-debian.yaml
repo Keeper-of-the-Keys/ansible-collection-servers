@@ -35,10 +35,17 @@
     - opendmarc
 #    - python3-mysqldb
     - luarocks
+    - lua5.4
     - liblua5.4-dev
     - lua-dbi-mysql
     - lua-ldap
     - python3-pymysql
+# TODO: The following packages are needed for backend/webui, if that is not installed on the same server it does not need to be here
+# It should probably also be handled by including a apache role and a mariadb role
+    - apache2
+    - php-fpm
+    - php-mysql
+    - mariadb-server
     state: latest
 
 - name: Install lua-crypt
