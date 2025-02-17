@@ -109,7 +109,7 @@ CREATE TABLE `virtual_application_passwords` (
   `password_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL,
   `application_username` varchar(100) NOT NULL,
-  `application_password` varchar(106) NOT NULL,
+  `application_password` varchar(255) NOT NULL,
   `password_changed` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`password_id`),
   UNIQUE KEY `application_username` (`application_username`),
