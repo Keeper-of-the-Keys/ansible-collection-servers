@@ -6,12 +6,12 @@
     login_db: '{{ mailserver_db_name }}'
     query: >
       insert ignore into `virtual_aliases` set
-      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s),
+      `domain_id` = (select `domain_id` from `virtual_domains` where `domain` = %(domain)s),
       `source` = %(source)s,
       `destination` = %(destination)s,
       `requires_identifier` = %(requires_identifier)s
     named_args:
-      name: '{{ _create_alias.name }}'
+      domain: '{{ _create_alias.domain }}'
       source: '{{ _create_alias.source }}'
       destination: '{{ _create_alias.destination }}'
       requires_identifier: '{{ _create_alias.requires_identifier | default(0) }}'
@@ -24,7 +24,7 @@
     login_db: '{{ mailserver_db_name }}'
     query: >
       delete from `virtual_aliases` where
-      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s) and
+      `domain_id` = (select `domain_id` from `virtual_domains` where `domain` = %(domain)s) and
       `source` = %(source)s and
       `destination` = %(destination)s
     named_args: '{{ _create_alias }}'

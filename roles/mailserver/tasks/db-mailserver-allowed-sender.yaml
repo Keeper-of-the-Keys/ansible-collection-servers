@@ -6,7 +6,7 @@
     login_db: '{{ mailserver_db_name }}'
     query: >
       insert ignore into `virtual_senders` set
-      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s),
+      `domain_id` = (select `domain_id` from `virtual_domains` where `domain` = %(domain)s),
       `address` = %(address)s,
       `allowed_sender` = %(allowed_sender)s
     named_args: '{{ _create_sender }}'
@@ -19,8 +19,8 @@
     login_db: '{{ mailserver_db_name }}'
     query: >
       delete from `virtual_senders` where
-      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s) and
+      `domain_id` = (select `domain_id` from `virtual_domains` where `domain` = %(domain)s) and
       `address` = %(address)s and
       `allowed_sender` = %(allowed_sender)s
     named_args: '{{ _create_sender }}'
-  when: _create_sender.state is defined and_create_sender.state == 'absent'
+  when: _create_sender.state is defined and _create_sender.state == 'absent'

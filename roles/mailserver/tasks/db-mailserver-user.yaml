@@ -7,20 +7,20 @@
     _create_user.active: 0
   when: _create_user.state is defined and _create_user.state == 'absent'
 
-- name: 'Create user {{ create_user.email }}'
+- name: 'Create user {{ _create_user.email }}'
   become: yes
   community.mysql.mysql_query:
     login_unix_socket: /run/mysqld/mysqld.sock
     login_db: '{{ mailserver_db_name }}'
     query: >
       insert into `virtual_users` set
-      `domain_id` = (select `domain_id` from `virtual_domains` where name = %(name)s),
+      `domain_id` = (select `domain_id` from `virtual_domains` where `domain` = %(domain)s),
       `email` = %(email)s,
       `active` = %(active)s
       on duplicate key update
       `active` = %(active)s
     named_args:
-      name: '{{ _create_user.name }}'
+      domain: '{{ _create_user.domain }}'
       email: '{{ _create_user.email }}'
       active: '{{ _create_user.active | default(1) }}'
       system_user: '{{ _create_user.system_user | default(0) }}'
