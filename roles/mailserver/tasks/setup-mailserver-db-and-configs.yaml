@@ -36,6 +36,7 @@
   ansible.builtin.debug:
     msg: "{{ schema_version.query_result[0][0]['value'] | to_nice_yaml }}"
   when:
+  - database_created is not changed
   - schema_version is succeeded
   - schema_version.rowcount == 1
   - schema_version.query_result[0][0]['value'] == {{ mailserver_db_schema_current }}

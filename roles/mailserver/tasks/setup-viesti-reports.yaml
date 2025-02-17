@@ -19,6 +19,8 @@
 
 - name: Clone Viesti-Reports
   become: yes
+#  become_user: www-data
+#  become_flags: '-s /bin/bash'
   ansible.builtin.git:
     repo: 'https://github.com/antedebaas/Viesti-Reports.git'
     dest: '{{ viesti_path }}'
@@ -28,7 +30,7 @@
     viesti_mail_password: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
     viesti_db_password: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
   vars:
-    special_list: '-_=+()[]{},./?!@#$^~:'
+    special_list: '-_=+()[]{},.!^~'
 
 - name: Create Viesti db
   become: yes
@@ -62,13 +64,13 @@
 
 - name: Generate new Viesti Mail user
   ansible.builtin.set_fact:
-    viesti_mail_user: "_dmarc-viesti-{{ lookup('community.general.random_string', length=6, special=false, upper=false) }}@{{ maildomain }}"
-  when: viesti_mail is defined and viesti_mail.stdout == ''
+    viesti_mail_user: "_dmarc-viesti-{{ lookup('community.general.random_string', length=6, special=false, upper=false) }}@{{ viesti.maildomain }}"
+  when: viesti_mail is skipped or (viesti_mail is changed and viesti_mail.stdout is defined and viesti_mail.stdout == '')
 
 - name: Import current Viesti Mail user
   ansible.builtin.set_fact:
     viesti_mail_user: '{{ viesti_mail.stdout }}'
-  when: viesti_mail.stdout is defined and viesti_mail.stdout != ''
+  when: viesti_mail is changed and viesti_mail.stdout is defined and viesti_mail.stdout != ''
 
 - name: Extract Viesti APP_SECRET
   become: yes
@@ -80,7 +82,7 @@
 - name: Generate new Viesti Secret
   ansible.builtin.set_fact:
     viesti_app_secret: "{{ lookup('community.general.random_string', length=32, base64=true) }}"
-  when: viesti_secret is defined and viesti_secret.stdout == ''
+  when: viesti_secret is skipped or (viesti_secret is changed and viesti_secret.stdout is defined and viesti_secret.stdout == '')
 
 - name: Import current Viesti Secret
   ansible.builtin.set_fact:
@@ -91,8 +93,8 @@
   ansible.builtin.include_tasks: tasks/db-mailserver-user.yaml
   vars:
     _create_user:
-      name: '{{ maildomain }}'
-      email: '_dmarc@{{ maildomain }}'
+      domain: '{{ viesti.maildomain }}'
+      email: '_dmarc@{{ viesti.maildomain }}'
       active: 1
       system_user: 1
 
@@ -113,7 +115,7 @@
       `application_password` = %(app_pass)s,
       `password_changed` = now()
     named_args:
-      dmarc_mail: '_dmarc@{{ maildomain }}'
+      dmarc_mail: '_dmarc@{{ viesti.maildomain }}'
       app_user: '{{ viesti_mail_user }}'
       app_pass: "{{ viesti_mail_password | ansible.builtin.password_hash(hashtype='sha512') }}"
 
@@ -133,18 +135,25 @@
 - name: Run update.sh
   become: yes
   ansible.builtin.shell:
-    cmd: '{{ viesti_path }}update.sh'
+    cmd: './update.sh'
+    chdir: '{{ viesti_path }}'
+
+- name: Run DB migrations
+  ansible.builtin.shell:
+    cmd: php bin/console doctrine:migrations:migrate -q
+    chdir: '{{ viesti_path }}'
 
 - name: Run installservice.sh
   become: yes
   ansible.builtin.shell:
-    cmd: '{{ viesti_path }}installservice.sh'
+    cmd: './installservice.sh'
+    chdir: '{{ viesti_path }}'
 
 - name: Ownership of viesti files
   become: yes
   ansible.builtin.file:
     path: '{{ viesti_path }}'
-    owner: www-data
+    owner: root
     group: www-data
     recurse: yes
 
@@ -163,7 +172,7 @@
     login_db: '{{ viesti_db_name }}'
     query: >
       insert
-      {% mailserver_ansible_source_of_truth is defined and not mailserver_ansible_source_of_truth %}
+      {% if mailserver_ansible_source_of_truth is defined and not mailserver_ansible_source_of_truth %}
       ignore
       {% endif %}
       into `users`
@@ -172,7 +181,7 @@
       `roles`= '["ROLE_ADMIN"]',
       `password` = %(password)s,
       `is_verified` = 1
-      {% mailserver_ansible_source_of_truth is not defined or (mailserver_ansible_source_of_truth is defined and mailserver_ansible_source_of_truth) %}
+      {% if mailserver_ansible_source_of_truth is not defined or (mailserver_ansible_source_of_truth is defined and mailserver_ansible_source_of_truth) %}
       on duplicate key update
       `password` = %(password)s
       {% endif %}

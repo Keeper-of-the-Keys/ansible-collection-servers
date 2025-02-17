@@ -27,3 +27,9 @@
   ansible.builtin.service:
     name: postfix
     state: restarted
+
+- name: restart_apache
+  become: yes
+  ansible.builtin.service:
+    name: apache2
+    state: restarted

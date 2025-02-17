@@ -40,12 +40,27 @@
     - lua-dbi-mysql
     - lua-ldap
     - python3-pymysql
+# mailmgmt mellon
+    - python3-lxml
 # TODO: The following packages are needed for backend/webui, if that is not installed on the same server it does not need to be here
 # It should probably also be handled by including a apache role and a mariadb role
     - apache2
+    - libapache2-mod-auth-mellon
+    - composer
+    - php-cli
+    - php-curl
     - php-fpm
+    - php-imagick
+    - php-imap
+    - php-ldap
+    - php-mbstring
     - php-mysql
+    - php-phar
+    - php-xml
+    - php-zip
     - mariadb-server
+# Same applies for git
+    - git
     state: latest
 
 - name: Install lua-crypt

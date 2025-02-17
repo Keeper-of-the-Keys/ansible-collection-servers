@@ -5,12 +5,13 @@
     special_list: '-_=+()[]{},./?!@#$^~:'
 
 - name: Create MySQL user or cycle password
+  become: yes
   community.mysql.mysql_user:
     login_unix_socket: /var/run/mysqld/mysqld.sock
     name: '{{ mailmanagement_db_user }}'
     password: '{{ mailmanagement_db_pass }}'
     priv:
-      '{{ mailmanagement_db_name }}.*:SELECT,INSERT,UPDATE,DELETE'
+      '{{ mailserver_db_name }}.*:SELECT,INSERT,UPDATE,DELETE'
     state: present
 
 - name: Clone git version
@@ -24,7 +25,7 @@
   become: yes
   ansible.builtin.file:
     path: '{{ mailmanagement_path }}'
-    owner: www-data
+    owner: root
     group: www-data
     recurse: yes
 
@@ -37,7 +38,7 @@
 - name: Get template
   ansible.builtin.fetch:
     src: '{{ mailmanagement_path }}config.j2'
-    dest: '{{ temp_folder.path }}'
+    dest: '{{ temp_folder.path }}/'
     flat: yes
 
 - name: Generate config.php
@@ -57,3 +58,55 @@
     msg: 'This is not yet implemented in the role/collection, please run the configure-virtualhosts playbook'
 
 # TODO: apache mellon (see superlinks)
+- name: Create mellon folder in apache configuration
+  become: yes
+  ansible.builtin.file:
+    dest: /etc/apache2/mellon
+    state: directory
+
+- name: Initialize mellon files
+  become: yes
+  ansible.builtin.shell:
+    cmd: /usr/sbin/mellon_create_metadata https://{{ mailmanagement_hostname | default(ansible_host) }} "https://{{ mailmanagement_hostname | default(ansible_host) }}/mellon"
+    chdir: /etc/apache2/mellon
+
+- name: Check if e-mail entry needs to be added
+  community.general.xml:
+    path: "/etc/apache2/mellon/https_{{ mailmanagement_hostname | default(ansible_host) }}.xml"
+    xpath: /om:EntityDescriptor/om:SPSSODescriptor/om:NameIDFormat
+    namespaces:
+      om: "urn:oasis:names:tc:SAML:2.0:metadata"
+    count: yes
+  register: mellon_mail
+
+- name: Add e-mail entry to mellon xml
+  become: yes
+  community.general.xml:
+    path: "/etc/apache2/mellon/https_{{ mailmanagement_hostname | default(ansible_host) }}.xml"
+    xpath: /om:EntityDescriptor/om:SPSSODescriptor
+    namespaces:
+      om: "urn:oasis:names:tc:SAML:2.0:metadata"
+    add_children:
+    - NameIDFormat: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'
+  when: mellon_mail.count < 1
+
+- name: Copy mellon.conf
+  become: yes
+  ansible.builtin.template:
+    src: mellon.j2
+    dest: '/etc/apache2/conf-available/mellon-{{ mailmanagement_hostname | default(ansible_host) }}.conf'
+
+- name: Download IdP metadata
+  become: yes
+  ansible.builtin.get_url:
+    url: 'https://{{ mailmanagement_idp }}/idp/saml2/metadata'
+    dest: '/etc/apache2/mellon/{{ mailmanagement_idp }}.xml'
+  when: mailmanagement_idp is defined
+
+- name: Enable mellon.conf
+  become: yes
+  ansible.builtin.file:
+    src: '../conf-available/mellon-{{ mailmanagement_hostname | default(ansible_host) }}.conf'
+    dest: '/etc/apache2/conf-enabled/mellon-{{ mailmanagement_hostname | default(ansible_host) }}.conf'
+    state: link
+  notify: restart_apache

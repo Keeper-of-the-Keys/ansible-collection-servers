@@ -22,4 +22,20 @@ mailserver_dkim_keypath: '/etc/dkimkeys/'
 
 mailserver_maildir_base_path: '/var/mail/'
 
+viesti_path: '/var/www/viesti-reports/'
+
+viesti_db_name: 'viesti-reports'
+viesti_db_user: 'viesti-reports'
+viesti_db_host: 'localhost'
+viesti_db_port: 3306
+
+viesti_mail_smtp: '{{ ansible_host }}'
+viesti_mail_smtp_port: 587
+viesti_mail_imap: '{{ ansible_host }}'
+viesti_mail_imap_port: 993
+
 mailmanagement_path: '/var/www/mailmanagement/'
+
+mailmanagement_db_user: 'mailmanagement-webui'
+mailmanagement_db_host: '{{ mailserver_db_server }}'
+mailmanagement_db_name: '{{ mailserver_db_name }}'
