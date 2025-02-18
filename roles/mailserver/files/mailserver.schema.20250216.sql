@@ -239,7 +239,7 @@ UNLOCK TABLES;
 /*!50003 SET character_set_results = utf8mb4 */ ;
 /*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
 DELIMITER ;;
-CREATE DEFINER=`eliyahu`@`localhost` PROCEDURE `resolve_alias`(IN `inmail` VARCHAR(100))
+CREATE DEFINER=`root`@`localhost` PROCEDURE `resolve_alias`(IN `inmail` VARCHAR(100))
     READS SQL DATA
     SQL SECURITY DEFINER
 BEGIN
