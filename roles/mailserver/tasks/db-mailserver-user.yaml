@@ -16,6 +16,7 @@
       insert into `virtual_users` set
       `domain_id` = (select `domain_id` from `virtual_domains` where `domain` = %(domain)s),
       `email` = %(email)s,
+      `system_user` = %(system_user)s,
       `active` = %(active)s
       on duplicate key update
       `active` = %(active)s
