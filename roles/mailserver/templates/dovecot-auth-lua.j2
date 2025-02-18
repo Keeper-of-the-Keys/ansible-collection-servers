@@ -367,7 +367,7 @@ function auth_userdb_lookup(request)
 	end
 
 	if (sqlUserDetails ~= nil and sqlUserDetails.active == 1 and (config.backend_type == 'MySQL' or (config.backend_type == 'LDAP' and (config.ldap_sync_cron == 1 or sqlUserDetails.system_user == 1)))) then
-		return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail'
+		return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail user='..request.user
 	end
 
 	if (config.backend_type == 'LDAP') then
@@ -393,10 +393,7 @@ function auth_userdb_lookup(request)
 				--if (ldapData[i].nsaccountlock) then
 				--	return dovecot.auth.USERDB_RESULT_INTERNAL_FAILURE, 'User disabled: '..request.user
 				--end
-				if (localMail ~= nil) then
-					return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail user='..localMail.email
-				end
-				return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail'
+				return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail user='..request.user
 			end
 		end
 	end
