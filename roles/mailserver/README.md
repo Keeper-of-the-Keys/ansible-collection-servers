@@ -14,6 +14,10 @@ In the mean time for myself and anyone who may try to use it things that still n
 - ?Greylisting
 - All kinds of TODO tagged improvements to the role
 
+Issues:
+- Start TLS requires importing the CA cert of the IPA server
+- lua-ldap as it ships in Debian segfaults, need >=1.3.1, will be opening a bug about this.
+
 Requirements
 ------------
 
