@@ -25,14 +25,16 @@
 
 - name: Generate/cycle DKIM keys
   ansible.builtin.include_tasks: tasks/cycle-dkim-keys.yaml
+  when: mailserver_debug_run is not defined
 
 - name: Configure opendmarc
   ansible.builtin.include_tasks: tasks/configure-opendmarc.yaml
 
 - name: Setup Vietsi Reports
   ansible.builtin.include_tasks: tasks/setup-viesti-reports.yaml
+  when: no_viesti is not defined
 
-# TODO: mellon automation is missing and maybe automate ipsilon?
+# TODO: ipsilon automation
 - name: Setup mailserver webUI
   ansible.builtin.include_tasks: tasks/setup-mailmanagement.yaml
 

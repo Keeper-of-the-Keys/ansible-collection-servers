@@ -16,7 +16,7 @@
       dn: '{{ _create_domain.ldap_bind_dn }}'
       uid: '{{ _create_domain.ldap_uid }}'
       password: '{{ _ldap_bind_password }}'
-  when: _create_domain.backend_type == 'LDAP'
+  when: _create_domain.backend_type == 'LDAP' and mailserver_debug_run is not defined
 
 - name: 'Create Domain {{ _create_domain.domain }}'
   become: yes
