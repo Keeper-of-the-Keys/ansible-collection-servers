@@ -7,6 +7,15 @@
     group: "{{ mailserver_opendmarc_group | default('opendmarc') }}"
     mode: 750
 
+- name: Create OpenDMARC log directory
+  become: yes
+  ansible.builtin.file:
+    path: /var/log/opendmarc
+    state: directory
+    owner: "{{ mailserver_opendmarc_user | default('opendmarc') }}"
+    group: "{{ mailserver_opendmarc_group | default('opendmarc') }}"
+    mode: 750
+
 # TODO: This can probably be done with ansible.builtin.user
 - name: Add postfix user to dkimpy-milter group
   become: yes
