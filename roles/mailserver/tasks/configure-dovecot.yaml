@@ -42,7 +42,7 @@
     regexp: '^#!include auth-lua.conf.ext'
     line: '!include auth-lua.conf.ext'
   - dest: /etc/dovecot/conf.d/10-mail.conf
-    regexp: '^#?mail_location = mbox:~/mail:INBOX={{ mailserver_maildir_base_path }}%u'
+    regexp: '^#?mail_location =.*$'
     line: 'mail_location = maildir:{{ mailserver_maildir_base_path }}%d/%n'
   - dest: /etc/dovecot/conf.d/10-mail.conf
     regexp: '^#?first_valid_uid'
@@ -68,6 +68,9 @@
   - dest: /etc/dovecot/conf.d/10-ssl.conf
     regexp: '^#?ssl_options'
     line: 'ssl_options = compression'
+  - dest: /etc/dovecot/conf.d/15-lda.conf
+    regexp: '^#?recipient_delimiter ='
+    line: 'recipient_delimiter = -'
   - dest: /etc/dovecot/conf.d/20-lmtp.conf
     regexp: '^#?lmtp_save_to_detail_mailbox'
     line: 'lmtp_save_to_detail_mailbox = yes'
@@ -86,6 +89,9 @@
     regexp: '{{ item.regexp }}'
     replace: '{{ item.replace }}'
   with_items:
+  - path: /etc/dovecot/conf.d/10-master.conf
+    regexp: '^(service lmtp {)\n(  unix_listener lmtp {\n    #mode = 0666\n  })'
+    replace: '\1\n  unix_listener /var/spool/postfix/private/dovecot-lmtp {\n    mode = 0600\n    group = postfix\n    user = postfix\n  }'
   - path: /etc/dovecot/conf.d/10-master.conf
     regexp: '^  #(unix_listener /var/spool/postfix/private/auth {)\n^  #(  mode = 0666)\n^  #(})'
     replace: '  \1\n  \2\n  \3'
