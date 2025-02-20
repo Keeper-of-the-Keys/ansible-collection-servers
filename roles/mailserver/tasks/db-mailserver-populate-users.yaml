@@ -5,6 +5,7 @@
       domain: '{{ _user.0.domain }}'
       email: '{{ _user.1.email }}'
       active: '{{ _user.1.active | default(1) }}'
+      system_user: '{{ _user.1.system_user | default(0) }}'
       state:  "{{ _user.1.state | default('present') }}"
 
 - name: Alias Loop
