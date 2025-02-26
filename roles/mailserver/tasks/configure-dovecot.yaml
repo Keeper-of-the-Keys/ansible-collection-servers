@@ -70,7 +70,7 @@
     line: 'ssl_options = compression'
   - dest: /etc/dovecot/conf.d/15-lda.conf
     regexp: '^#?recipient_delimiter ='
-    line: 'recipient_delimiter = -'
+    line: 'recipient_delimiter = {{ mailserver_recipient_delimiter }}'
   - dest: /etc/dovecot/conf.d/20-lmtp.conf
     regexp: '^#?lmtp_save_to_detail_mailbox'
     line: 'lmtp_save_to_detail_mailbox = yes'

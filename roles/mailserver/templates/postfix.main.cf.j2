@@ -94,7 +94,7 @@ mynetworks =
 {% if mailserver.mailbox_size_limit is defined %}
 mailbox_size_limit = {{ mailserver_mailbox_size_limit }}
 {% endif %}
-recipient_delimiter = -
+recipient_delimiter = {{ mailserver_recipient_delimiter }}
 #local_transport = error:local mail delivery is disabled
 
 smtpd_helo_required = yes

@@ -5,7 +5,6 @@ mailserver_dovecot_user_readonly: 'dovecot-user'
 mailserver_db_server:             '127.0.0.1'
 mailserver_db_port:               3306
 mailserver_db_schema_current:     20250216
-# mailserver_dovecot_password_readonly -- generated in playbook
 
 # The following just enable the relevant section in master.cf 
 # At this time they DO NOT actually configure postfix to use any of the services or install them.
@@ -21,6 +20,8 @@ mailserver_dkim_group: 'dkimpy-milter'
 mailserver_dkim_keypath: '/etc/dkimkeys/'
 
 mailserver_maildir_base_path: '/var/mail/'
+
+mailserver_recipient_delimiter: '-'
 
 viesti_path: '/var/www/viesti-reports/'
 

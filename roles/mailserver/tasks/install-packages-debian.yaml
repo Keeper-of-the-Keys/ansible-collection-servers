@@ -13,7 +13,7 @@
     value: Internet Site
     vtype: select
   - question: postfix/recipient_delim
-    value: '-'
+    value: '{{ mailserver_recipient_delimiter }}'
     vtype: string
 
 - name: Install Postfix, Dovecot and dependencies
