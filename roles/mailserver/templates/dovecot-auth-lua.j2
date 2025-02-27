@@ -30,7 +30,9 @@ function getDomainConfig(domain)
 
 	sth:execute(domain)
 
-	return sth:fetch(true)
+	row = sth:fetch(true)
+	sth:close()
+	return row
 end
 
 function getUserDetailsSQL(username)
@@ -52,7 +54,9 @@ function getUserDetailsSQL(username)
 	local sth = assert(dbh:prepare(getUserQuery))
 	sth:execute(username)
 
-	return sth:fetch(true)
+	row = sth:fetch(true)
+	sth:close()
+	return row
 end
 
 function getPrimaryUserDetailsSQL(username, allow_primary_password)
@@ -86,7 +90,9 @@ function getPrimaryUserDetailsSQL(username, allow_primary_password)
 	local sth = assert(dbh:prepare(getPrimaryUserQuery))
 	sth:execute(username)
 
-	return sth:fetch(true)
+	row = sth:fetch(true)
+	sth:close()
+	return row
 end
 
 function dereferenceAlias(email)
@@ -134,7 +140,9 @@ function dereferenceAlias(email)
 	local sth = assert(dbh:prepare(getLocalMail))
 	sth:execute(email)
 
-	return sth:fetch(true)
+	row = sth:fetch(true)
+	sth:close()
+	return row
 end
 
 function ldapSearch(base, scope, attrs, filter)
