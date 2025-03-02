@@ -1,0 +1,8 @@
+<location />
+	MellonSPPrivateKeyFile /etc/apache2/mellon/https_{{ mailmanagement_hostname }}.key
+	MellonSPCertFile /etc/apache2/mellon/https_{{ mailmanagement_hostname }}.cert
+	MellonSPMetadataFile /etc/apache2/mellon/https_{{ mailmanagement_hostname }}.xml
+	MellonIdPMetadataFile /etc/apache2/mellon/{{ mailmanagement_idp }}.xml
+	MellonEndpointPath /mellon
+	MellonEnable "info"
+</Location>
