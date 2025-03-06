@@ -7,6 +7,7 @@
   become: no
   ansible.builtin.set_fact:
     mailserver_dovecot_password_readonly: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
+    mailserver_postfix_password_readonly: "{{ lookup('community.general.random_string', length=40, override_special=special_list) }}"
   vars:
     special_list: '-_=+()[]{},./?!@#$^~:'
 
@@ -17,6 +18,16 @@
     login_unix_socket: /var/run/mysqld/mysqld.sock
     state: present
   register: database_created
+
+# At this time requires my branch of community.mysql, should be merged in 3.13.0
+# This user needs to exist before the db is imported or schema upgrades are run since otherwise stored procedure creation will fail.
+- name: Create user for stored procedures
+  become: true
+  community.mysql.mysql_user:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: mailserver_readonly_procedure_user
+    priv: '{{ mailserver_db_name }}.*:SELECT'
+    locked: true
 
 - name: Import database schema
   ansible.builtin.include_tasks: tasks/setup-mailserver-db.yaml
