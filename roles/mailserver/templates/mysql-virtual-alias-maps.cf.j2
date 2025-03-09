@@ -2,5 +2,5 @@ user = {{ mailserver_dovecot_user_readonly }}
 password = {{ mailserver_dovecot_password_readonly }}
 hosts = {{ mailserver_db_server }}
 dbname = {{ mailserver_db_name }}
-query = CALL `resolve_alias`('%s')
+query = CALL `postfix_resolve_alias`('%s', '{{ mailserver_recipient_delimiter }}')
 
