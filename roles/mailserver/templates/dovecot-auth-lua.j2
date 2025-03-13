@@ -1,6 +1,5 @@
 -- TODO:
 -- 1. implement writelog to keep track of password usage (db table already exists)
--- 2. implement dovecot userdb function
 
 -- Includes
 -- local dovecot = require 'dovecot.auth'
@@ -21,12 +20,8 @@ local alive = dbh:ping()
 local lualdap
 local ldh
 
--- TODO: Rewrite query functions into single function that takes the query string and arg.
-
 function getDomainConfig(domain)
-	local getConfigQuery = 'select `backend_type`, `backend_uri`, `ldap_bind_dn`, `ldap_bind_password`, `ldap_base_dn`, `allow_primary_password`, `ldap_sync_cron` from `virtual_domains` where `domain` = ?'
-	
-	local sth = assert(dbh:prepare(getConfigQuery))
+	local sth = assert(dbh:prepare("CALL `dovecot_auth_domain_config`(?)"))
 
 	sth:execute(domain)
 
@@ -36,22 +31,7 @@ function getDomainConfig(domain)
 end
 
 function getUserDetailsSQL(username)
-	local getUserQuery = [[
-		select
-		`virtual_users`.`user_id` as `mail_user_id`,
-		`virtual_users`.`email` as `email`,
-		`virtual_users`.`active` as `active`,
-		`virtual_users`.`system_user` as `system_user`,
-		`virtual_application_passwords`.`password_id` as `mail_password_id`,
-		`virtual_application_passwords`.`application_password` as `mail_password_hash`
-		from
-		`virtual_application_passwords`
-		inner join `virtual_users` on
-		`virtual_users`.`user_id` = `virtual_application_passwords`.`user_id`
-		where `virtual_application_passwords`.`application_username` = ?
-		]]
-
-	local sth = assert(dbh:prepare(getUserQuery))
+	local sth = assert(dbh:prepare("CALL `dovecot_auth_user_details`(?)"))
 	sth:execute(username)
 
 	row = sth:fetch(true)
@@ -60,34 +40,7 @@ function getUserDetailsSQL(username)
 end
 
 function getPrimaryUserDetailsSQL(username, allow_primary_password)
-	-- The assignment using [[]] is done mainly for code readability and a nice output should you want to print the query for debug purposes.
-	local getPrimaryUserQuery = [[
-		select
-		`user_id` as `mail_user_id`,
-		`email` as `email`,
-		`active` as `active`,
-		`system_user` as `system_user`,
-]]
-
-	if (allow_primary_password == 1) then
-		getPrimaryUserQuery = getPrimaryUserQuery..[[
-		`primary_password` as `mail_password_hash`,
-]]
-	else
-		getPrimaryUserQuery = getPrimaryUserQuery..[[
-		'' as `mail_password_hash`,
-]]
-	end
-
-	getPrimaryUserQuery = getPrimaryUserQuery..[[
-		0 as `mail_password_id`
-		from
-		`virtual_users`
-		where
-		`email` = ?
-	]]
-
-	local sth = assert(dbh:prepare(getPrimaryUserQuery))
+	local sth = assert(dbh:prepare("CALL `dovecot_auth_primary_user`(?, '{{ mailserver_recipient_delimiter }}', ?);"))
 	sth:execute(username)
 
 	row = sth:fetch(true)
@@ -96,48 +49,7 @@ function getPrimaryUserDetailsSQL(username, allow_primary_password)
 end
 
 function dereferenceAlias(email)
--- Query if full dereferencing and all forwarding addresses were needed:
---	local getLocalMail = [[
---		with recursive `cte` as ( 
---			select `tmp`.* from 
---			virtual_aliases as `tmp` 
---			where `tmp`.`source` = ? 
---			union all 
---			select `tmp`.* from 
---			`cte` join 
---			`virtual_aliases` as `tmp` on 
---			`cte`.`destination` = `tmp`.`source` 
---			where `cte`.`source` != `cte`.`destination`
---		) select `cte`.`destination`, `virtual_users`.`active`, `virtual_users`.`system_user` 
---			from `cte` left join `virtual_users` on `virtual_users`.`email` = `cte`.`destination` 
---			where not exists 
---				( select 1 from `virtual_aliases`
---					where 
---						(`cte`.`source` != `cte`.`destination` and `virtual_aliases`.`source` = `cte`.`destination`)
---				); 
---	]]
--- Query for this context which only needs to derefernce to a single valid system mailbox (postfix should have done the other dereferncing):
-	local getLocalMail = [[
-		with recursive `cte` as ( 
-			select `tmp`.* from 
-			virtual_aliases as `tmp` 
-			where `tmp`.`source` = ? 
-			union all 
-			select `tmp`.* from 
-			`cte` join 
-			`virtual_aliases` as `tmp` on 
-			`cte`.`destination` = `tmp`.`source` 
-			where `cte`.`source` != `cte`.`destination`
-		) select `virtual_users`.`email`, `virtual_users`.`active`, `virtual_users`.`system_user` 
-			from `cte` inner join `virtual_users` on `virtual_users`.`email` = `cte`.`destination` 
-			where not exists 
-				( select 1 from `virtual_aliases`
-					where 
-						(`cte`.`source` != `cte`.`destination` and `virtual_aliases`.`source` = `cte`.`destination`)
-				); 
-	]]
-
-	local sth = assert(dbh:prepare(getLocalMail))
+	local sth = assert(dbh:prepare("CALL `dovecot_auth_resolve_alias`(?, '{{ mailserver_recipient_delimiter }}');"))
 	sth:execute(email)
 
 	row = sth:fetch(true)
