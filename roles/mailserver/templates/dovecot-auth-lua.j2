@@ -310,9 +310,9 @@ function auth_userdb_lookup(request)
 		end
 
 		for i=1, #ldapData do
-			local usernameStart = string.find(sqlUserDetails.email, ldapData[i].uid, 1, true)
+			local usernameStart = string.find(searchMail, ldapData[i].uid, 1, true)
 			local usernameLength = string.len(ldapData[i].uid)
-			local firstAt = string.find(sqlUserDetails.email, '@', 1, true)
+			local firstAt = string.find(searchMail, '@', 1, true)
 
 			if (usernameStart == 1 and (usernameStart + usernameLength) == firstAt) then
 				-- Does it matter if the account is disabled for this? Disabled should result in a bounce message... TODO?
