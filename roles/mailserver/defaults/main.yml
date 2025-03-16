@@ -6,6 +6,8 @@ mailserver_postfix_user_readonly: 'postfix-user'
 mailserver_db_server:             '127.0.0.1'
 mailserver_db_port:               3306
 mailserver_db_schema_current:     20250312
+mailserver_db_migrations:
+  '20250216': 'mailserver.schema.update.20250216-20250218.sql'
 
 # The following just enable the relevant section in master.cf 
 # At this time they DO NOT actually configure postfix to use any of the services or install them.

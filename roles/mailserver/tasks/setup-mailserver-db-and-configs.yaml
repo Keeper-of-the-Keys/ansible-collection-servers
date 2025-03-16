@@ -1,8 +1,3 @@
-# TODO: rename vars and create in role
-#  vars:
-#    user_readonly: dovecot-user
-#    db_name: mailserver
-
 - name: Generate random password
   become: no
   ansible.builtin.set_fact:
@@ -37,20 +32,19 @@
   become: yes
   community.mysql.mysql_query:
     login_db: '{{ mailserver_db_name }}'
-    query: Select `value` from `system_info` where `key` = 'schema_version';
+    query: SELECT `value` FROM `system_info` WHERE `key` = 'schema_version';
     login_unix_socket: /run/mysqld/mysqld.sock
   register: schema_version
   when: database_created is not changed
 
-# TODO: upgrade if needed
-- name: Schema version
-  ansible.builtin.debug:
-    msg: "{{ schema_version.query_result[0][0]['value'] | to_nice_yaml }}"
+- name: Schema version upgrade
+  ansible.builtin.include_tasks: tasks/db-schema-upgrade-loop.yaml
   when:
   - database_created is not changed
   - schema_version is succeeded
   - schema_version.rowcount == 1
-  - schema_version.query_result[0][0]['value'] == {{ mailserver_db_schema_current }}
+  - schema_version.query_result[0][0]['value'] < mailserver_db_schema_current
+  - mailserver_db_migrations[schema_version.query_result[0][0]['value']] is defined
 
 - name: Populate database
   ansible.builtin.include_tasks: tasks/db-mailserver-populate.yaml
