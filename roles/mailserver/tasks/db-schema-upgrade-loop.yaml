@@ -36,7 +36,7 @@
   ansible.builtin.include_tasks: tasks/db-schema-upgrade-loop.yaml
   when:
   - schema_version is succeeded
-  - schema_version.rowcount == 1
-  - schema_version.query_result[0][0]['value'] < {{ mailserver_db_schema_current }}
+  - schema_version.rowcount[0] == 1
+  - schema_version.query_result[0][0]['value'] | int < {{ mailserver_db_schema_current }} | int
   - mailserver_db_migrations[schema_version.query_result[0][0]['value']] is defined
 
