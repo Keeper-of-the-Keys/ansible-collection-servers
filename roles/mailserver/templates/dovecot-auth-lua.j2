@@ -6,12 +6,13 @@
 local DBI = require 'DBI'
 
 -- MySQL connection details
-local db = {}
-db.name = '{{ mailserver_db_name }}'
-db.username = '{{ mailserver_dovecot_user_readonly }}'
-db.password = '{{ mailserver_dovecot_password_readonly }}'
-db.host = '{{ mailserver_db_server }}'
-db.port = '{{ mailserver_db_port }}'
+local db = {
+	name = '{{ mailserver_db_name }}',
+	username = '{{ mailserver_dovecot_user_readonly }}',
+	password = '{{ mailserver_dovecot_password_readonly }}',
+	host = '{{ mailserver_db_server }}',
+	port = '{{ mailserver_db_port }}',
+}
 
 local dbh = assert(DBI.Connect('MySQL', db.name, db.username, db.password, db.host, db.port))
 dbh:autocommit(true)
@@ -41,7 +42,7 @@ end
 
 function getPrimaryUserDetailsSQL(username, allow_primary_password)
 	local sth = assert(dbh:prepare("CALL `dovecot_auth_primary_user`(?, '{{ mailserver_recipient_delimiter }}', ?);"))
-	sth:execute(username)
+	sth:execute(username, allow_primary_password)
 
 	row = sth:fetch(true)
 	sth:close()
@@ -289,6 +290,8 @@ function auth_userdb_lookup(request)
 	if (sqlUserDetails ~= nil and sqlUserDetails.active == 1 and (config.backend_type == 'MySQL' or (config.backend_type == 'LDAP' and (config.ldap_sync_cron == 1 or sqlUserDetails.system_user == 1)))) then
 		return dovecot.auth.USERDB_RESULT_OK, 'uid=mail gid=mail user='..sqlUserDetails.email
 	end
+
+	searchMail = ''
 
 	if (sqlUserDetails == nil) then
 		searchMail = request.user
