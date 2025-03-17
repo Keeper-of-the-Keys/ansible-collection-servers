@@ -54,6 +54,15 @@
 # Postfix read only, no password hashes, only procedures?
 # Dovecot/lua yes password hashes
 
+# After the schema is imported/updated the procdures exist and can be granted, as procedures may be dropped during updates and with it the rights this needs to run like this after the fact.
+- name: Create user for stored procedures
+  become: true
+  community.mysql.mysql_user:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: mailserver_ro_procedures
+    priv: '{{ mailserver_db_name }}.*:SELECT/PROCEDURE {{ mailserver_db_name }}.dovecot_auth_domain_config:EXECUTE/PROCEDURE {{ mailserver_db_name }}.dovecot_auth_user_details:EXECUTE/PROCEDURE {{ mailserver_db_name }}.dovecot_auth_resolve_alias:EXECUTE/PROCEDURE {{ mailserver_db_name }}.dovecot_auth_primary_user:EXECUTE/PROCEDURE {{ mailserver_db_name }}.postfix_resolve_alias:EXECUTE/PROCEDURE {{ mailserver_db_name }}.postfix_sender_maps:EXECUTE/PROCEDURE {{ mailserver_db_name }}.postfix_virtual_mailbox_domains:EXECUTE/PROCEDURE {{ mailserver_db_name }}.postfix_virtual_mailbox_maps:EXECUTE'
+    locked: true
+
 - name: Create dovecot mysql user or cycle password
   become: yes
   community.mysql.mysql_user:
