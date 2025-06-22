@@ -5,10 +5,18 @@
   register: reboot_required
   failed_when: "reboot_required.rc not in [ 0, 1]"
 
+# TODO: auditd needs to be moved to a variable and if more services are added
+- name: Check if services need restart that require reboot
+  become: yes
+  ansible.builtin.shell:
+    cmd: needs-restarting -s | grep service | grep -c auditd
+  register: restart_required_services
+  failed_when: "restart_required_services.rc not in [ 0, 1]"
+
 - name: Reboot
   become: yes
   ansible.builtin.reboot:
-  when: reboot_required.rc == 1
+  when: reboot_required.rc == 1 or restart_required_services.stdout | int > 0
 
 - name: Check if services need restart
   become: yes
