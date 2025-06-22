@@ -1,5 +1,6 @@
 - name: Snapshot host
   ansible.builtin.include_tasks: tasks/snapshot.yaml
+  when: no_snapshot is not defined
 
 - name: Debian Update
   ansible.builtin.include_tasks: tasks/system_update_debian.yaml

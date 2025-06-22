@@ -4,6 +4,10 @@
 - name: Find become method
   ansible.builtin.include_tasks: tasks/determine_become_method.yaml
 
+- name: Snapshot host
+  ansible.builtin.include_tasks: tasks/snapshot.yaml
+  when: no_snapshot is not defined
+
 - name: apt-get update
   ansible.builtin.include_tasks: tasks/apt_update.yaml
   when: ansible_facts.os_family == 'Debian'
