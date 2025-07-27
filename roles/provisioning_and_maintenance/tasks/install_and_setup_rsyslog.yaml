@@ -1,0 +1,50 @@
+# TODO: rsyslog MAY need to be a variable dependent on distro
+- name: Make sure rsyslog is installed
+  become: yes
+  ansible.builtin.package:
+    name: rsyslog
+    state: latest
+
+# TODO: only relevant to journald distros (Ubuntu/RH), add check
+- name: Modify journald config
+  become: yes
+  ansible.builtin.lineinfile:
+    dest: '{{ item.dest }}'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  notify: restart_journald
+  loop:
+  - dest: /etc/systemd/journald.conf
+    regexp: '^#?Storage='
+    line: 'Storage=none'
+  - dest: /etc/systemd/journald.conf
+    regexp: '^#?ForwardToSyslog='
+    line: 'ForwardToSyslog=yes'
+
+# While I have started work on a generalized function for this for now this shortcut
+# Currently located in tasks/move_file.yaml but will probably move to a utilies role/collection
+# TODO: (not mandatory) make file list distor dependent, since the code checks existence not critical
+# TODO: (nice to have) add success/failure feedback
+- name: Disable rsyslog config that store locally
+  become: yes
+  ansible.builtin.shell:
+    cmd: 'if [ -e {{ item }} ]; then mv {{ item }} {{ item }}.disabled; fi'
+  loop:
+  - /etc/rsyslog.d/20-ufw.conf
+  - /etc/rsyslog.d/21-cloudinit.conf
+  - /etc/rsyslog.d/50-default.conf
+
+- name: Add rsyslog forward config
+  become: yes
+  ansible.builtin.template:
+    src: rsyslog-forward-to-promtail.j2
+    dest: /etc/rsyslog.d/promtail.conf
+  notify: restart_rsyslog
+
+# TODOS:
+# 1. Services that write logs - 
+#    - apache
+#    - nextcloud
+#    - php-fpm
+# 2. Disable local logging
+

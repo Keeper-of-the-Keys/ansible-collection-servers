@@ -5,3 +5,15 @@
   ansible.builtin.service:
     name: '{{ ssh_service[ansible_facts.os_family] }}'
     state: restarted
+
+- name: restart_journald
+  become: yes
+  ansible.builtin.service:
+    name: journald
+    state: restarted
+
+- name: restart_rsyslog
+  become: yes
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted
