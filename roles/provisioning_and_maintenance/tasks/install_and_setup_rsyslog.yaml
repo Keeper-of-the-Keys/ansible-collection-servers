@@ -1,3 +1,4 @@
+# TODO Fedora: SELinux port, fix /etc/rsyslog.conf
 # TODO: rsyslog MAY need to be a variable dependent on distro
 - name: Make sure rsyslog is installed
   become: yes
