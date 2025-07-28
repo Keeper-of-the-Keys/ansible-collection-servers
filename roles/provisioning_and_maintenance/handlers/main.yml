@@ -9,7 +9,7 @@
 - name: restart_journald
   become: yes
   ansible.builtin.service:
-    name: journald
+    name: systemd-journald
     state: restarted
 
 - name: restart_rsyslog
