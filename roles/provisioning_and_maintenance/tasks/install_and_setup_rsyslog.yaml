@@ -35,12 +35,32 @@
   - /etc/rsyslog.d/21-cloudinit.conf
   - /etc/rsyslog.d/50-default.conf
 
+- name: Modify rsyslog.conf on Fedora class distros
+  become: yes
+  ansible.builtin.copy:
+    src: fedora.rsyslog.conf
+    dest: /etc/rsyslog.conf
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  when: ansible_facts.os_family == 'RedHat'
+
 - name: Add rsyslog forward config
   become: yes
   ansible.builtin.template:
     src: rsyslog-forward-to-promtail.j2
     dest: /etc/rsyslog.d/promtail.conf
   notify: restart_rsyslog
+
+- name: 'Allow rsyslogd to access port {{ rsyslog_target_port }}'
+  become: yes
+  community.general.seport:
+    ports: '{{ rsyslog_target_port }}'
+    proto: tcp
+    setype: syslogd_port_t
+    state: present
+  when: ansible_facts.os_family == 'RedHat'
 
 # TODOS:
 # 1. Services that write logs - 
