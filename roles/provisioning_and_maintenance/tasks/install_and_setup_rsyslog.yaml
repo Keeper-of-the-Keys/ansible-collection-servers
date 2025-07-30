@@ -13,14 +13,20 @@
     dest: '{{ item.dest }}'
     regexp: '{{ item.regexp }}'
     line: '{{ item.line }}'
-  notify: restart_journald
+  notify: '{{ item.notify }}'
   loop:
   - dest: /etc/systemd/journald.conf
     regexp: '^#?Storage='
     line: 'Storage=none'
+    notify: restart_journald
   - dest: /etc/systemd/journald.conf
     regexp: '^#?ForwardToSyslog='
     line: 'ForwardToSyslog=yes'
+    notify: restart_journald
+  - dest: /etc/fail2ban/fail2ban.conf
+    regexp: '^logtarget = '
+    line: 'logtarget = syslog'
+    notify: restart_fail2ban
 
 # While I have started work on a generalized function for this for now this shortcut
 # Currently located in tasks/move_file.yaml but will probably move to a utilies role/collection

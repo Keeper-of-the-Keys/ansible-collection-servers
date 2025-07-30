@@ -17,3 +17,9 @@
   ansible.builtin.service:
     name: rsyslog
     state: restarted
+
+- name: restart_fail2ban
+  become: yes
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
