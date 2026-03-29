@@ -10,7 +10,7 @@
     vmid: '{{ pve_vmid | default(omit) }}'
     hostname: '{{ pve_vm_name | default(omit) }}'
     state: present
-    snapname: 'pre-ansible-update-{{ ansible_date_time.iso8601_basic_short }}'
+    snapname: 'pre-ansible-update-{{ ansible_facts.date_time.iso8601_basic_short }}'
     retention: '{{ pve_snapshot_retention }}'
   when: pve_vmid is defined or pve_vm_name is defined
   delegate_to: localhost
