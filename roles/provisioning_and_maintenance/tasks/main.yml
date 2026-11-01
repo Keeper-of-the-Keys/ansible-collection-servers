@@ -28,3 +28,7 @@
 - name: System Update Debian
   ansible.builtin.include_tasks: tasks/system_update_debian.yaml
   when: ansible_facts.os_family == 'Debian'
+
+# This can run always, when enabled on a system without serial port it still functions.
+- name: Enable Serial console
+  ansible.builtin.include_tasks: tasks/enable_serial_console.yaml

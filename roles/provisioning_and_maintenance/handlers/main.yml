@@ -23,3 +23,8 @@
   ansible.builtin.service:
     name: fail2ban
     state: restarted
+
+- name: update_grub
+  become: true
+  ansible.builtin.shell:
+    cmd: /usr/sbin/update-grub

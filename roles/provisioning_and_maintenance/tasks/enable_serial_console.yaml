@@ -1,0 +1,12 @@
+- name: Enable serial console in grub
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  notify: update_grub
+  loop:
+  - regexp: '^#?GRUB_CMDLINE_LINUX_DEFAULT="quiet.*"'
+    line: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,115200 consoleblank=0"'
+  - regexp: '^#?GRUB_TERMINAL="?console.*'
+    line: 'GRUB_TERMINAL="console serial"'
